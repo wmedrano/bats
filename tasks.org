@@ -1,7 +1,35 @@
 #+author: Will S. Medrano
 #+title: Simian Sonic Tasklist
 
-* MVP
+* Sprint 2
+
+** TODO Create tracks
+
+** TODO Delete tracks
+
+** TODO Instantiate plugin to track
+
+* Devex
+
+** TODO Upload to GitHub
+
+** DONE Handle Command Parsing Errors Gracefully
+
+* Codehealth
+
+** TODO Add CI
+
+- Use GitHub actions.
+
+** TODO Add Docstrings
+
+** DONE Add Logging
+
+* Performance
+
+* DONE Drop instance outside of processing thread
+
+* DONE Sprint 1
 
 ** DONE Create CLI
 
@@ -12,15 +40,3 @@
 ** DONE Playback Plugin
 
 *** DONE Auto Connect The Ports
-
-* Devex and Codehealth
-
-** TODO Upload to GitHub
-
-*** TODO Add CI
-
-- Use GitHub actions.
-
-** DONE Add Logging
-
-** DONE Handle Command Parsing Errors Gracefully

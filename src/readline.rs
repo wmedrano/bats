@@ -19,6 +19,7 @@ impl Readline {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
 pub enum Command {
     ListPlugins,
     SetPlugin(usize),

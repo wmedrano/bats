@@ -6,18 +6,30 @@ struct RawFn {
     f: Box<dyn Send + FnOnce(&mut ProcessHandler)>,
 }
 
-pub struct Mutator {
+pub struct RemoteExecutor {
     sender: mpsc::SyncSender<RawFn>,
 }
 
-impl Mutator {
-    pub fn mutate(&self, f: impl 'static + Send + FnOnce(&mut ProcessHandler)) {
+impl RemoteExecutor {
+    fn base_call(&self, f: impl 'static + Send + FnOnce(&mut ProcessHandler)) {
         let raw_fn = RawFn {
             f: Box::new(move |process_handler| {
                 f(process_handler);
             }),
         };
         self.sender.send(raw_fn).unwrap();
+    }
+
+    pub fn execute<T: 'static + Send>(
+        &self,
+        f: impl 'static + Send + FnOnce(&mut ProcessHandler) -> T,
+    ) -> T {
+        let (tx, rx) = mpsc::sync_channel(1);
+        self.base_call(move |ps| {
+            let ret = f(ps);
+            tx.send(ret).unwrap();
+        });
+        rx.recv().unwrap()
     }
 }
 
@@ -27,7 +39,7 @@ pub struct ProcessHandler {
     midi_input: jack::Port<jack::MidiIn>,
     atom_sequence_input: livi::event::LV2AtomSequence,
     midi_urid: u32,
-    fns_queue: mpsc::Receiver<RawFn>,
+    remote_fns: mpsc::Receiver<RawFn>,
 }
 
 impl ProcessHandler {
@@ -39,21 +51,21 @@ impl ProcessHandler {
         let midi_input = c.register_port("midi", jack::MidiIn)?;
         let atom_sequence_input = livi::event::LV2AtomSequence::new(features, 4096);
         let midi_urid = features.midi_urid();
-        let (_, fns_queue) = mpsc::sync_channel(1);
+        let (_, remote_fns) = mpsc::sync_channel(1);
         Ok(ProcessHandler {
             plugin_instance: None,
             audio_outputs,
             midi_input,
             atom_sequence_input,
             midi_urid,
-            fns_queue,
+            remote_fns,
         })
     }
 
-    pub fn reset_mutator(&mut self) -> Mutator {
-        let (tx, rx) = mpsc::sync_channel(16);
-        self.fns_queue = rx;
-        Mutator { sender: tx }
+    pub fn reset_remote_executor(&mut self, queue_size: usize) -> RemoteExecutor {
+        let (tx, rx) = mpsc::sync_channel(queue_size);
+        self.remote_fns = rx;
+        RemoteExecutor { sender: tx }
     }
 
     pub fn connect(&self, c: &jack::Client) -> Result<(), jack::Error> {
@@ -79,18 +91,21 @@ impl ProcessHandler {
         Ok(())
     }
 
-    fn handle_fns(&mut self) -> Result<(), mpsc::TryRecvError> {
-        let mut f = self.fns_queue.try_recv()?;
+    fn handle_remote_fns(&mut self) -> Result<(), mpsc::TryRecvError> {
+        let mut f = self.remote_fns.try_recv()?;
         loop {
             (f.f)(self);
-            f = self.fns_queue.try_recv()?;
+            f = self.remote_fns.try_recv()?;
         }
     }
 }
 
 impl jack::ProcessHandler for ProcessHandler {
     fn process(&mut self, _: &jack::Client, ps: &jack::ProcessScope) -> jack::Control {
-        let _ = self.handle_fns();
+        match self.handle_remote_fns() {
+            // All the scenarios are ok.
+            Ok(_) | Err(mpsc::TryRecvError::Empty) | Err(mpsc::TryRecvError::Disconnected) => (),
+        };
         self.atom_sequence_input.clear();
         for midi in self.midi_input.iter(ps) {
             self.atom_sequence_input
@@ -107,6 +122,7 @@ impl jack::ProcessHandler for ProcessHandler {
             .map(|i| unsafe { i.run(ps.n_frames() as usize, ports) })
             .unwrap_or(Ok(()));
         if let Err(err) = res {
+            // TODO: Drop this outside of processing thread.
             let p = self.plugin_instance.take().unwrap();
             error!("{:?}", err);
             error!("Disabling plugin {:?}.", p.raw().instance().uri());
