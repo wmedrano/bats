@@ -1,3 +1,5 @@
+use jack::PortSpec;
+
 fn main() {
     let world_handle = std::thread::spawn(livi::World::new);
     let (client, _status) =
@@ -14,6 +16,7 @@ fn main() {
         println!("{}: {}", idx, plugin.name());
     }
     let process_handler = ProcessHandler::new(&client, plugin_instance, &features);
+    process_handler.connect(&client);
     let active_client = client.activate_async((), process_handler).unwrap();
 
     println!("Press RET to exit.");
@@ -50,6 +53,30 @@ impl ProcessHandler {
             midi_input,
             atom_sequence_input,
             midi_urid,
+        }
+    }
+
+    pub fn connect(&self, c: &jack::Client) {
+        // Audio
+        let inputs = self.audio_outputs.iter();
+        let outputs = c.ports(
+            None,
+            Some(jack::AudioIn.jack_port_type()),
+            jack::PortFlags::IS_PHYSICAL | jack::PortFlags::IS_INPUT,
+        );
+        for (input, output) in inputs.zip(outputs.iter()) {
+            c.connect_ports_by_name(&input.name().unwrap(), output)
+                .unwrap();
+        }
+
+        // Midi
+        for input in c.ports(
+            None,
+            Some(jack::MidiOut.jack_port_type()),
+            jack::PortFlags::IS_TERMINAL | jack::PortFlags::IS_OUTPUT,
+        ) {
+            c.connect_ports_by_name(&input, &self.midi_input.name().unwrap())
+                .unwrap();
         }
     }
 }
