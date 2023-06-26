@@ -7,6 +7,6 @@
 
 ** DONE List Plugins
 
-** TODO Instantiate Plugin
+** DONE Instantiate Plugin
 
 ** TODO Playback Plugin
