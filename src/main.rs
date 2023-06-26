@@ -25,9 +25,8 @@ fn main() {
     let active_client = client.activate_async((), process_handler).unwrap();
 
     let mut rl = readline::Readline::new().unwrap();
-    let mut exit_requested = false;
     info!("{}", readline::Command::help_str());
-    while !exit_requested {
+    loop {
         match rl.readline() {
             Err(err) => error!("{:?}", err),
             Ok(cmd) => match cmd {
@@ -45,11 +44,12 @@ fn main() {
                 },
                 readline::Command::Help => println!("{}", readline::Command::help_str()),
                 readline::Command::Nothing => (),
-                readline::Command::Exit => exit_requested = true,
+                readline::Command::Exit => {
+                    info!("Exiting...");
+                    active_client.deactivate().unwrap();
+                    return;
+                }
             },
         }
     }
-
-    info!("Exiting...");
-    active_client.deactivate().unwrap();
 }
