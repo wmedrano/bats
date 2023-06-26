@@ -1,0 +1,12 @@
+#+author: Will S. Medrano
+#+title: Simian Sonic Tasklist
+
+* MVP
+
+** TODO Create CLI
+
+** DONE List Plugins
+
+** TODO Instantiate Plugin
+
+** TODO Playback Plugin
