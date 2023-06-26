@@ -10,3 +10,13 @@
 ** DONE Instantiate Plugin
 
 ** TODO Playback Plugin
+
+*** DONE Auto Connect The Ports
+
+* Devex and Codehealth
+
+** TODO Upload to GitHub
+
+*** TODO Add CI
+
+** TODO Add Logging
