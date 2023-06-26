@@ -1,4 +1,5 @@
 use jack::PortSpec;
+use log::error;
 use std::sync::mpsc;
 
 struct RawFn {
@@ -100,8 +101,15 @@ impl jack::ProcessHandler for ProcessHandler {
             .with_audio_outputs(self.audio_outputs.iter_mut().map(|p| p.as_mut_slice(ps)))
             .with_atom_sequence_inputs(std::iter::once(&self.atom_sequence_input));
 
-        if let Some(plugin_instance) = self.plugin_instance.as_mut() {
-            unsafe { plugin_instance.run(ps.n_frames() as usize, ports) }.unwrap();
+        let res = self
+            .plugin_instance
+            .as_mut()
+            .map(|i| unsafe { i.run(ps.n_frames() as usize, ports) })
+            .unwrap_or(Ok(()));
+        if let Err(err) = res {
+            let p = self.plugin_instance.take().unwrap();
+            error!("{:?}", err);
+            error!("Disabling plugin {:?}.", p.raw().instance().uri());
         }
         jack::Control::Continue
     }

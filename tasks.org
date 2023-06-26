@@ -21,10 +21,6 @@
 
 - Use GitHub actions.
 
-** TODO Add Logging
+** DONE Add Logging
 
-- Something that uses the ~log~ crate.
-
-** TODO Handle Command Parsing Errors Gracefully
-
-- Currently the ~Command~ has lots of panics.
+** DONE Handle Command Parsing Errors Gracefully
