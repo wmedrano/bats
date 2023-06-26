@@ -3,7 +3,7 @@
 
 * MVP
 
-** TODO Create CLI
+** DONE Create CLI
 
 ** DONE List Plugins
 
@@ -19,4 +19,12 @@
 
 *** TODO Add CI
 
+- Use GitHub actions.
+
 ** TODO Add Logging
+
+- Something that uses the ~log~ crate.
+
+** TODO Handle Command Parsing Errors Gracefully
+
+- Currently the ~Command~ has lots of panics.

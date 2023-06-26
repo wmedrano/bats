@@ -1,98 +1,77 @@
-use jack::PortSpec;
+mod process_handler;
 
 fn main() {
     let world_handle = std::thread::spawn(livi::World::new);
     let (client, _status) =
         jack::Client::new("simian-sonic", jack::ClientOptions::NO_START_SERVER).unwrap();
+    let sample_rate = client.sample_rate() as f64;
 
     let world = world_handle.join().unwrap();
-    let plugin = world
-        .iter_plugins()
-        .find(|p| p.uri() == "http://drobilla.net/plugins/mda/EPiano")
-        .unwrap();
     let features = world.build_features(livi::FeaturesBuilder::default());
-    let plugin_instance = unsafe { plugin.instantiate(features.clone(), 44100.0) }.unwrap();
-    for (idx, plugin) in world.iter_plugins().enumerate() {
-        println!("{}: {}", idx, plugin.name());
-    }
-    let process_handler = ProcessHandler::new(&client, plugin_instance, &features);
-    process_handler.connect(&client);
+    let mut process_handler = process_handler::ProcessHandler::new(&client, &features).unwrap();
+    let mutator = process_handler.reset_mutator();
+    process_handler.connect(&client).unwrap();
     let active_client = client.activate_async((), process_handler).unwrap();
 
-    println!("Press RET to exit.");
-    let mut line = String::new();
-    std::io::stdin().read_line(&mut line).unwrap();
+    let mut rl = rustyline::DefaultEditor::new().unwrap();
+    let mut user_requested_exit = false;
+    Command::print_help();
+    while !user_requested_exit {
+        let readline = rl.readline(">> ");
+        match readline {
+            Ok(line) => match Command::parse(&line) {
+                Command::ListPlugins => {
+                    for (idx, plugin) in world.iter_plugins().enumerate() {
+                        println!("{}: {}", idx, plugin.name());
+                    }
+                }
+                Command::SetPlugin(idx) => {
+                    let plugin = world.iter_plugins().nth(idx).unwrap();
+                    let plugin_instance =
+                        unsafe { plugin.instantiate(features.clone(), sample_rate) }.unwrap();
+                    mutator.mutate(move |ph| ph.plugin_instance = Some(plugin_instance));
+                }
+                Command::Help => Command::print_help(),
+                Command::Exit => user_requested_exit = true,
+                Command::UnknownCommand(err) => println!("Unknown command: {}", err),
+            },
+            Err(rustyline::error::ReadlineError::Interrupted) => user_requested_exit = true,
+            Err(rustyline::error::ReadlineError::Eof) => {}
+            Err(err) => panic!("Readline error: {:?}", err),
+        }
+    }
 
+    println!("Exiting...");
     active_client.deactivate().unwrap();
 }
 
-struct ProcessHandler {
-    plugin_instance: livi::Instance,
-    audio_outputs: [jack::Port<jack::AudioOut>; 2],
-    midi_input: jack::Port<jack::MidiIn>,
-    atom_sequence_input: livi::event::LV2AtomSequence,
-    midi_urid: u32,
+enum Command {
+    ListPlugins,
+    SetPlugin(usize),
+    Help,
+    Exit,
+    UnknownCommand(String),
 }
 
-impl ProcessHandler {
-    pub fn new(
-        c: &jack::Client,
-        plugin_instance: livi::Instance,
-        features: &livi::Features,
-    ) -> Self {
-        let audio_outputs = [
-            c.register_port("out1", jack::AudioOut).unwrap(),
-            c.register_port("out2", jack::AudioOut).unwrap(),
-        ];
-        let midi_input = c.register_port("midi", jack::MidiIn).unwrap();
-        let atom_sequence_input = livi::event::LV2AtomSequence::new(features, 4096);
-        let midi_urid = features.midi_urid();
-        ProcessHandler {
-            plugin_instance,
-            audio_outputs,
-            midi_input,
-            atom_sequence_input,
-            midi_urid,
+impl Command {
+    pub fn parse(line: &str) -> Command {
+        let mut parts = line.split(" ");
+        match parts.next().unwrap_or("") {
+            "list_plugins" => Command::ListPlugins,
+            "set_plugin" => Command::SetPlugin(parts.next().unwrap().parse().unwrap()),
+            "help" | "" => Command::Help,
+            "exit" => Command::Exit,
+            cmd => Command::UnknownCommand(cmd.to_string()),
         }
     }
 
-    pub fn connect(&self, c: &jack::Client) {
-        // Audio
-        let inputs = self.audio_outputs.iter();
-        let outputs = c.ports(
-            None,
-            Some(jack::AudioIn.jack_port_type()),
-            jack::PortFlags::IS_PHYSICAL | jack::PortFlags::IS_INPUT,
+    pub fn print_help() {
+        println!(
+            r#"Commands:
+    list_plugins    - List all available plugins.
+    set_plugin <id> - Set the plugin.
+    help            - Print the help menu.
+    exit            - Exit the program."#
         );
-        for (input, output) in inputs.zip(outputs.iter()) {
-            c.connect_ports_by_name(&input.name().unwrap(), output)
-                .unwrap();
-        }
-
-        // Midi
-        for input in c.ports(
-            None,
-            Some(jack::MidiOut.jack_port_type()),
-            jack::PortFlags::IS_TERMINAL | jack::PortFlags::IS_OUTPUT,
-        ) {
-            c.connect_ports_by_name(&input, &self.midi_input.name().unwrap())
-                .unwrap();
-        }
-    }
-}
-
-impl jack::ProcessHandler for ProcessHandler {
-    fn process(&mut self, _: &jack::Client, ps: &jack::ProcessScope) -> jack::Control {
-        self.atom_sequence_input.clear();
-        for midi in self.midi_input.iter(ps) {
-            self.atom_sequence_input
-                .push_midi_event::<4>(midi.time as i64, self.midi_urid, midi.bytes)
-                .unwrap();
-        }
-        let ports = livi::EmptyPortConnections::new()
-            .with_audio_outputs(self.audio_outputs.iter_mut().map(|p| p.as_mut_slice(ps)))
-            .with_atom_sequence_inputs(std::iter::once(&self.atom_sequence_input));
-        unsafe { self.plugin_instance.run(ps.n_frames() as usize, ports) }.unwrap();
-        jack::Control::Continue
     }
 }
