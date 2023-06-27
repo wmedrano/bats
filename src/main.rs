@@ -51,8 +51,9 @@ fn main() {
                         None => error!("plugin {} is not valid.", idx),
                         Some(p) => match unsafe { p.instantiate(features.clone(), sample_rate) } {
                             Ok(i) => {
-                                let old: Option<livi::Instance> =
-                                    executor.execute(move |ph| ph.plugin_instance.replace(i));
+                                let old: Option<livi::Instance> = executor
+                                    .execute(move |ph| ph.plugin_instance.replace(i))
+                                    .unwrap();
                                 drop(old); // Drop outside main thread.
                             }
                             Err(err) => error!("{:?}", err),

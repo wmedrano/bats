@@ -30,13 +30,13 @@ impl RemoteExecutor {
     pub fn execute<T: 'static + Send>(
         &self,
         f: impl 'static + Send + FnOnce(&mut Simian) -> T,
-    ) -> T {
+    ) -> Result<T, mpsc::RecvError> {
         let (tx, rx) = mpsc::sync_channel(1);
         self.base_call(move |s| {
             let ret = f(s);
             tx.send(ret).unwrap();
         });
-        rx.recv().unwrap()
+        rx.recv()
     }
 }
 
