@@ -1,5 +1,4 @@
 use log::error;
-use std::sync::mpsc;
 
 /// Contains a callable function.
 struct RawFn {
@@ -10,7 +9,7 @@ struct RawFn {
 /// A struct that can execute code on an object that is running on a different thread.
 pub struct RemoteExecutor {
     /// The channel to send functions to execute on.
-    sender: mpsc::SyncSender<RawFn>,
+    sender: crossbeam_channel::Sender<RawFn>,
 }
 
 impl RemoteExecutor {
@@ -30,8 +29,8 @@ impl RemoteExecutor {
     pub fn execute<T: 'static + Send>(
         &self,
         f: impl 'static + Send + FnOnce(&mut Simian) -> T,
-    ) -> Result<T, mpsc::RecvError> {
-        let (tx, rx) = mpsc::sync_channel(1);
+    ) -> Result<T, crossbeam_channel::RecvError> {
+        let (tx, rx) = crossbeam_channel::bounded(1);
         self.base_call(move |s| {
             let ret = f(s);
             tx.send(ret).unwrap();
@@ -51,7 +50,7 @@ pub struct Simian {
     /// The `urid` for the LV2 midi atom.
     midi_urid: u32,
     /// A channel to receive functions to execute.
-    remote_fns: mpsc::Receiver<RawFn>,
+    remote_fns: crossbeam_channel::Receiver<RawFn>,
 }
 
 impl Simian {
@@ -59,7 +58,7 @@ impl Simian {
     pub fn new(features: &livi::Features) -> Self {
         let atom_sequence_input = livi::event::LV2AtomSequence::new(features, 4096);
         let midi_urid = features.midi_urid();
-        let (_, remote_fns) = mpsc::sync_channel(1);
+        let (_, remote_fns) = crossbeam_channel::bounded(1);
         Simian {
             plugin_instance: None,
             atom_sequence_input,
@@ -72,13 +71,13 @@ impl Simian {
     ///
     /// Any previously set executor will no longer be responsive.
     pub fn reset_remote_executor(&mut self, queue_size: usize) -> RemoteExecutor {
-        let (tx, rx) = mpsc::sync_channel(queue_size);
+        let (tx, rx) = crossbeam_channel::bounded(queue_size);
         self.remote_fns = rx;
         RemoteExecutor { sender: tx }
     }
 
     /// Run all remote functions that have been queued.
-    fn handle_remote_fns(&mut self) -> Result<(), mpsc::TryRecvError> {
+    fn handle_remote_fns(&mut self) -> Result<(), crossbeam_channel::TryRecvError> {
         let mut f = self.remote_fns.try_recv()?;
         loop {
             (f.f)(self);
@@ -95,7 +94,9 @@ impl Simian {
     ) {
         match self.handle_remote_fns() {
             // All the scenarios are OK.
-            Ok(_) | Err(mpsc::TryRecvError::Empty) | Err(mpsc::TryRecvError::Disconnected) => (),
+            Ok(_)
+            | Err(crossbeam_channel::TryRecvError::Empty)
+            | Err(crossbeam_channel::TryRecvError::Disconnected) => (),
         };
         self.atom_sequence_input.clear();
         for (frame, data) in midi_in {
