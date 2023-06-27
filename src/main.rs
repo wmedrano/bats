@@ -4,6 +4,7 @@ use log::{error, info, warn};
 
 mod jack_adapter;
 mod readline;
+mod remote_executor;
 mod simian;
 
 fn new_world_and_features() -> (livi::World, Arc<livi::Features>) {
@@ -50,9 +51,9 @@ fn main() {
                     readline::Command::SetPlugin(idx) => match world.iter_plugins().nth(idx) {
                         None => error!("plugin {} is not valid.", idx),
                         Some(p) => match unsafe { p.instantiate(features.clone(), sample_rate) } {
-                            Ok(i) => {
+                            Ok(plugin_instance) => {
                                 let old: Option<livi::Instance> = executor
-                                    .execute(move |ph| ph.plugin_instance.replace(i))
+                                    .execute(move |s| s.plugin_instance.replace(plugin_instance))
                                     .unwrap();
                                 drop(old); // Drop outside main thread.
                             }
