@@ -13,9 +13,8 @@ pub struct RemoteExecutor {
 }
 
 impl RemoteExecutor {
-    /// Execute `f`. Note that there is no return value and it does not wait for `f` to actually be
-    /// executed.
-    fn base_call(&self, f: impl 'static + Send + FnOnce(&mut Simian)) {
+    /// Call for `f` to be executed. This will send `f` to be executed but will not block.
+    fn execute_async(&self, f: impl 'static + Send + FnOnce(&mut Simian)) {
         let raw_fn = RawFn {
             f: Box::new(move |s| {
                 f(s);
@@ -31,7 +30,7 @@ impl RemoteExecutor {
         f: impl 'static + Send + FnOnce(&mut Simian) -> T,
     ) -> Result<T, crossbeam_channel::RecvError> {
         let (tx, rx) = crossbeam_channel::bounded(1);
-        self.base_call(move |s| {
+        self.execute_async(move |s| {
             let ret = f(s);
             tx.send(ret).unwrap();
         });
