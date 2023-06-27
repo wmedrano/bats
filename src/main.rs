@@ -21,7 +21,7 @@ fn main() {
     let features = world.build_features(livi::FeaturesBuilder::default());
     let mut process_handler = process_handler::ProcessHandler::new(&client, &features).unwrap();
     let executor = process_handler.reset_remote_executor(1);
-    if let Err(err) = process_handler.connect(&client) {
+    if let Err(err) = process_handler.connect_ports(&client) {
         warn!("Failed to autoconnect ports: {:?}", err);
     };
     let active_client = client.activate_async((), process_handler).unwrap();

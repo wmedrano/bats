@@ -1,17 +1,44 @@
+use log::warn;
+
+/// Reads input from the command line and translates it into commands.
 pub struct Readline {
-    editor: rustyline::DefaultEditor,
+    history_path: std::path::PathBuf,
+    editor: rustyline::Editor<(), rustyline::history::FileHistory>,
 }
 
 impl Readline {
+    /// Create a new `Readline`.
     pub fn new() -> Result<Self, rustyline::error::ReadlineError> {
+        let history_path = shellexpand::full("~/.config.simian-sonic.history").unwrap();
+        let config = rustyline::Config::builder()
+            .max_history_size(100)?
+            .auto_add_history(true)
+            .build();
+        let history = rustyline::history::FileHistory::new();
+        let mut editor = rustyline::Editor::with_history(config, history)?;
+        if let Err(err) = editor.load_history(history_path.as_ref()) {
+            warn!(
+                "Could not load history from {}: {}",
+                history_path.as_ref(),
+                err
+            );
+            let _ = std::fs::write(history_path.as_ref(), "");
+        }
         Ok(Readline {
-            editor: rustyline::DefaultEditor::new()?,
+            history_path: history_path.as_ref().into(),
+            editor,
         })
     }
 
+    /// Read the next command.
     pub fn readline(&mut self) -> Result<Command, Error> {
         match self.editor.readline(">> ") {
-            Ok(line) => Command::parse(&line),
+            Ok(line) => {
+                if let Err(err) = self.editor.save_history(&self.history_path) {
+                    warn!("Could not save history: {}", err);
+                }
+                Command::parse(&line)
+            }
             Err(rustyline::error::ReadlineError::Interrupted) => Ok(Command::Exit),
             Err(rustyline::error::ReadlineError::Eof) => Ok(Command::Help),
             Err(err) => Err(Error::ReadlineError(err)),
@@ -19,28 +46,40 @@ impl Readline {
     }
 }
 
+/// A command to execute.
 #[derive(Copy, Clone, Debug)]
 pub enum Command {
+    /// List all plugins.
     ListPlugins,
+    /// Set the current plugin to the given one. `usize` is an index in the plugin array.
     SetPlugin(usize),
+    /// Print help.
     Help,
+    /// Do nothing.
     Nothing,
+    /// Exit the program.
     Exit,
 }
 
+/// Errors that occur when reading commands.
 #[derive(Debug)]
 pub enum Error {
+    /// The command is not known.
     UnknownCommand(String),
+    /// Not enough arguments for the specified command.
     NotEnoughArgumentsForCommand {
         command: &'static str,
         expected_arguments: usize,
         actual_arguments: usize,
     },
+    /// Failed to parse an integer.
     FailedToParseInteger(std::num::ParseIntError),
+    /// An error in `rustyline`.
     ReadlineError(rustyline::error::ReadlineError),
 }
 
 impl Command {
+    /// Parse a command from a line.
     fn parse(line: &str) -> Result<Command, Error> {
         let mut parts = line.trim().split(" ");
         match parts.next().unwrap_or("") {
@@ -61,6 +100,7 @@ impl Command {
         }
     }
 
+    /// The help string.
     pub fn help_str() -> &'static str {
         r#"Commands:
     list_plugins    - List all available plugins.
