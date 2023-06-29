@@ -85,34 +85,57 @@ impl Simian {
     fn process_tracks<'a>(
         frames: usize,
         tracks: &mut [Track],
-        midi: &livi::event::LV2AtomSequence,
+        atom_sequence: &livi::event::LV2AtomSequence,
         mut audio_out: [&'a mut [f32]; 2],
         buffer: &mut [f32],
     ) {
         for slice in audio_out.iter_mut() {
             clear(slice);
         }
+
         for track in tracks.iter_mut() {
             if !track.enabled {
                 continue;
             }
-            let ports = livi::EmptyPortConnections::new()
-                .with_audio_outputs(buffer.chunks_exact_mut(frames).take(2))
-                .with_atom_sequence_inputs(std::iter::once(midi));
-            let res = unsafe { track.plugin_instance.run(frames, ports) };
-            match res {
-                Ok(()) => {
-                    for (dst, src) in audio_out.iter_mut().zip(buffer.chunks_exact_mut(frames)) {
-                        mix(dst, src, track.volume);
-                    }
-                }
-                Err(err) => {
+            let mut buffer_chunks = buffer.chunks_exact_mut(frames);
+            let mut tmp_in = [buffer_chunks.next().unwrap(), buffer_chunks.next().unwrap()];
+            let mut tmp_out = [buffer_chunks.next().unwrap(), buffer_chunks.next().unwrap()];
+            for b in tmp_out.iter_mut() {
+                clear(b);
+            }
+            for plugin_instance in track.plugin_instances.iter_mut() {
+                std::mem::swap(&mut tmp_in, &mut tmp_out);
+                let port_counts = plugin_instance.port_counts();
+                let ports = livi::EmptyPortConnections::new()
+                    .with_audio_inputs(
+                        tmp_in
+                            .iter()
+                            .map(|s| s.as_ref())
+                            .take(port_counts.audio_inputs),
+                    )
+                    .with_audio_outputs(
+                        tmp_out
+                            .iter_mut()
+                            .map(|s| s.as_mut())
+                            .take(port_counts.audio_outputs),
+                    )
+                    .with_atom_sequence_inputs(
+                        std::iter::once(atom_sequence).take(port_counts.atom_sequence_inputs),
+                    );
+                let res = unsafe { plugin_instance.run(frames, ports) };
+                if let Err(err) = res {
                     track.enabled = false;
                     error!("{:?}", err);
                     error!(
                         "Disabling plugin {:?}.",
-                        track.plugin_instance.raw().instance().uri()
+                        plugin_instance.raw().instance().uri()
                     );
+                    continue;
+                }
+            }
+            if track.enabled {
+                for (dst, src) in audio_out.iter_mut().zip(tmp_out.iter()) {
+                    mix(dst, src, track.volume);
                 }
             }
         }

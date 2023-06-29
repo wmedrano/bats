@@ -13,6 +13,8 @@ pub enum Command {
     ListPlugins,
     /// Create a new track with the given plugin index.
     AddTrack(usize),
+    /// Instantiate a plugin to a track.
+    AddPlugin { track: usize, plugin: usize },
     /// Print help.
     Help,
     /// Do nothing.
@@ -94,12 +96,13 @@ impl rustyline::completion::Completer for AutoComplete {
         pos: usize,
         _ctx: &rustyline::Context<'_>,
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
-        let words = line.split(" ");
-        if pos != line.len() || words.clone().count() != 1 {
+        let words = line.trim().split(" ");
+        let word_count = words.clone().count();
+        if pos != line.len() || word_count != 1 {
             return Ok((0, Vec::with_capacity(0)));
         }
         let word = words.last().unwrap_or_default();
-        let cmds = ["add_track", "exit", "help", "list_plugins"];
+        let cmds = ["add_plugin ", "add_track ", "exit", "help", "list_plugins"];
         let candidates: Vec<String> = cmds
             .into_iter()
             .filter(|c| c.starts_with(word))
@@ -134,6 +137,26 @@ impl Command {
                 Some(Err(err)) => Err(Error::FailedToParseInteger(err)),
                 Some(Ok(idx)) => Ok(Command::AddTrack(idx)),
             },
+            "add_plugin" => {
+                let mut numbers = parts.map(|s| -> Result<usize, _> { s.parse() });
+                let track = numbers.next();
+                let plugin = numbers.next();
+                match (track, plugin) {
+                    (None, _) => Err(Error::NotEnoughArgumentsForCommand {
+                        command: "add_plugin",
+                        expected_arguments: 2,
+                        actual_arguments: 0,
+                    }),
+                    (_, None) => Err(Error::NotEnoughArgumentsForCommand {
+                        command: "add_plugin",
+                        expected_arguments: 2,
+                        actual_arguments: 1,
+                    }),
+                    (Some(Err(err)), _) => Err(Error::FailedToParseInteger(err)),
+                    (_, Some(Err(err))) => Err(Error::FailedToParseInteger(err)),
+                    (Some(Ok(track)), Some(Ok(plugin))) => Ok(Command::AddPlugin { track, plugin }),
+                }
+            }
             "exit" => Ok(Command::Exit),
             cmd => Err(Error::UnknownCommand(cmd.to_string())),
         }
@@ -142,9 +165,10 @@ impl Command {
     /// The help string.
     pub fn help_str() -> &'static str {
         r#"Commands:
-    list_plugins    - List all available plugins.
-    add_track  <id> - Add a track with the given plugin.
-    help            - Print the help menu.
-    exit            - Exit the program."#
+    list_plugins                - List all available plugins.
+    add_track <plugin>          - Add a track with the given plugin.
+    add_plugin <track> <plugin> - Add to the track the given plugin.
+    help                        - Print the help menu.
+    exit                        - Exit the program."#
     }
 }

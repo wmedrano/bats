@@ -50,12 +50,31 @@ fn main() {
                         None => error!("plugin {} is not valid.", plugin_index),
                         Some(p) => match unsafe { p.instantiate(features.clone(), sample_rate) } {
                             Ok(plugin_instance) => {
+                                let mut plugin_instances = Vec::with_capacity(16);
+                                plugin_instances.push(plugin_instance);
                                 let track = track::Track {
-                                    plugin_instance,
+                                    plugin_instances,
                                     enabled: true,
                                     volume: 0.25,
                                 };
                                 executor.execute(move |s| s.tracks.push(track)).unwrap();
+                            }
+                            Err(err) => error!("{:?}", err),
+                        },
+                    },
+                    readline::Command::AddPlugin { track, plugin } => match world
+                        .iter_plugins()
+                        .nth(plugin)
+                    {
+                        None => error!("plugin {} is not valid.", plugin),
+                        Some(p) => match unsafe { p.instantiate(features.clone(), sample_rate) } {
+                            Ok(plugin_instance) => {
+                                executor
+                                    .execute(move |s| {
+                                        // TODO: Check bounds.
+                                        s.tracks[track].plugin_instances.push(plugin_instance)
+                                    })
+                                    .unwrap();
                             }
                             Err(err) => error!("{:?}", err),
                         },
