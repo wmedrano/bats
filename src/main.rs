@@ -6,6 +6,7 @@ mod jack_adapter;
 mod readline;
 mod remote_executor;
 mod simian;
+mod track;
 
 fn main() {
     env_logger::builder()
@@ -42,14 +43,19 @@ fn main() {
                             println!("{}: {}", idx, p.name());
                         }
                     }
-                    readline::Command::SetPlugin(idx) => match world.iter_plugins().nth(idx) {
-                        None => error!("plugin {} is not valid.", idx),
+                    readline::Command::AddTrack(plugin_index) => match world
+                        .iter_plugins()
+                        .nth(plugin_index)
+                    {
+                        None => error!("plugin {} is not valid.", plugin_index),
                         Some(p) => match unsafe { p.instantiate(features.clone(), sample_rate) } {
                             Ok(plugin_instance) => {
-                                let old: Option<livi::Instance> = executor
-                                    .execute(move |s| s.plugin_instance.replace(plugin_instance))
-                                    .unwrap();
-                                drop(old); // Drop outside main thread.
+                                let track = track::Track {
+                                    plugin_instance,
+                                    enabled: true,
+                                    volume: 0.25,
+                                };
+                                executor.execute(move |s| s.tracks.push(track)).unwrap();
                             }
                             Err(err) => error!("{:?}", err),
                         },

@@ -1,11 +1,11 @@
 use log::error;
 
-use crate::remote_executor::RemoteExecutor;
+use crate::{remote_executor::RemoteExecutor, track::Track};
 
 /// Handles audio processing.
 pub struct Simian {
     /// The plugin instance to run or `None` if no plugin should be running.
-    pub plugin_instance: Option<livi::Instance>,
+    pub tracks: Vec<Track>,
 
     /// A temporary `LV2AtomSequence` to use for processing. The object is persisted to avoid
     /// allocating memory.
@@ -14,6 +14,8 @@ pub struct Simian {
     midi_urid: u32,
     /// A channel to receive functions to execute.
     remote_fns: crossbeam_channel::Receiver<crate::remote_executor::RawFn>,
+    /// A buffer that can be used to store temporary data.
+    buffer: Vec<f32>,
 }
 
 impl Simian {
@@ -23,10 +25,11 @@ impl Simian {
         let midi_urid = features.midi_urid();
         let (_, remote_fns) = crossbeam_channel::bounded(1);
         Simian {
-            plugin_instance: None,
+            tracks: Vec::with_capacity(64),
             atom_sequence_input,
             midi_urid,
             remote_fns,
+            buffer: vec![0f32; features.max_block_length() * 32],
         }
     }
 
@@ -39,6 +42,25 @@ impl Simian {
         RemoteExecutor::new(tx)
     }
 
+    /// Process data and write the results to `audio_out`.
+    pub fn process<'a>(
+        &'a mut self,
+        frames: usize,
+        midi_in: impl Iterator<Item = (i64, &'a [u8])>,
+        audio_out: [&'a mut [f32]; 2],
+    ) {
+        // All the scenarios are OK.
+        let _ = self.handle_remote_fns();
+        Self::load_midi_events(&mut self.atom_sequence_input, midi_in, self.midi_urid);
+        Self::process_tracks(
+            frames,
+            &mut self.tracks,
+            &self.atom_sequence_input,
+            audio_out,
+            &mut self.buffer,
+        );
+    }
+
     /// Run all remote functions that have been queued.
     fn handle_remote_fns(&mut self) -> Result<(), crossbeam_channel::TryRecvError> {
         let mut f = self.remote_fns.try_recv()?;
@@ -48,39 +70,63 @@ impl Simian {
         }
     }
 
-    /// Process data and write the results to `audio_out`.
-    pub fn process<'a>(
-        &'a mut self,
-        frames: usize,
-        midi_in: impl Iterator<Item = (i64, &'a [u8])>,
-        audio_out: impl ExactSizeIterator + Iterator<Item = &'a mut [f32]>,
+    fn load_midi_events<'a>(
+        dst: &mut livi::event::LV2AtomSequence,
+        src: impl Iterator<Item = (i64, &'a [u8])>,
+        midi_urid: u32,
     ) {
-        match self.handle_remote_fns() {
-            // All the scenarios are OK.
-            Ok(_)
-            | Err(crossbeam_channel::TryRecvError::Empty)
-            | Err(crossbeam_channel::TryRecvError::Disconnected) => (),
-        };
-        self.atom_sequence_input.clear();
-        for (frame, data) in midi_in {
-            self.atom_sequence_input
-                .push_midi_event::<4>(frame, self.midi_urid, data)
-                .unwrap();
+        dst.clear();
+        for (frame, data) in src {
+            dst.push_midi_event::<4>(frame, midi_urid, data).unwrap();
         }
-        let ports = livi::EmptyPortConnections::new()
-            .with_audio_outputs(audio_out)
-            .with_atom_sequence_inputs(std::iter::once(&self.atom_sequence_input));
+    }
 
-        let res = self
-            .plugin_instance
-            .as_mut()
-            .map(|i| unsafe { i.run(frames, ports) })
-            .unwrap_or(Ok(()));
-        if let Err(err) = res {
-            // TODO: Drop this outside of processing thread.
-            let p = self.plugin_instance.take().unwrap();
-            error!("{:?}", err);
-            error!("Disabling plugin {:?}.", p.raw().instance().uri());
+    /// Process all tracks and write the results to out.
+    fn process_tracks<'a>(
+        frames: usize,
+        tracks: &mut [Track],
+        midi: &livi::event::LV2AtomSequence,
+        mut audio_out: [&'a mut [f32]; 2],
+        buffer: &mut [f32],
+    ) {
+        for slice in audio_out.iter_mut() {
+            clear(slice);
         }
+        for track in tracks.iter_mut() {
+            if !track.enabled {
+                continue;
+            }
+            let ports = livi::EmptyPortConnections::new()
+                .with_audio_outputs(buffer.chunks_exact_mut(frames).take(2))
+                .with_atom_sequence_inputs(std::iter::once(midi));
+            let res = unsafe { track.plugin_instance.run(frames, ports) };
+            match res {
+                Ok(()) => {
+                    for (dst, src) in audio_out.iter_mut().zip(buffer.chunks_exact_mut(frames)) {
+                        mix(dst, src, track.volume);
+                    }
+                }
+                Err(err) => {
+                    track.enabled = false;
+                    error!("{:?}", err);
+                    error!(
+                        "Disabling plugin {:?}.",
+                        track.plugin_instance.raw().instance().uri()
+                    );
+                }
+            }
+        }
+    }
+}
+
+fn clear(a: &mut [f32]) {
+    for v in a.iter_mut() {
+        *v = 0f32;
+    }
+}
+
+fn mix(dst: &mut [f32], src: &[f32], ratio: f32) {
+    for (d, s) in dst.iter_mut().zip(src.iter()) {
+        *d += *s * ratio;
     }
 }

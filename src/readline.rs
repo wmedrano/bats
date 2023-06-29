@@ -51,8 +51,8 @@ impl Readline {
 pub enum Command {
     /// List all plugins.
     ListPlugins,
-    /// Set the current plugin to the given one. `usize` is an index in the plugin array.
-    SetPlugin(usize),
+    /// Create a new track with the given plugin index.
+    AddTrack(usize),
     /// Print help.
     Help,
     /// Do nothing.
@@ -86,14 +86,14 @@ impl Command {
             "help" => Ok(Command::Help),
             "" => Ok(Command::Nothing),
             "list_plugins" => Ok(Command::ListPlugins),
-            "set_plugin" => match parts.next().map(|s| -> Result<usize, _> { s.parse() }) {
+            "add_track" => match parts.next().map(|s| -> Result<usize, _> { s.parse() }) {
                 None => Err(Error::NotEnoughArgumentsForCommand {
-                    command: "set_plugin",
+                    command: "add_track",
                     expected_arguments: 1,
                     actual_arguments: 0,
                 }),
                 Some(Err(err)) => Err(Error::FailedToParseInteger(err)),
-                Some(Ok(idx)) => Ok(Command::SetPlugin(idx)),
+                Some(Ok(idx)) => Ok(Command::AddTrack(idx)),
             },
             "exit" => Ok(Command::Exit),
             cmd => Err(Error::UnknownCommand(cmd.to_string())),
@@ -104,7 +104,7 @@ impl Command {
     pub fn help_str() -> &'static str {
         r#"Commands:
     list_plugins    - List all available plugins.
-    set_plugin <id> - Set the plugin.
+    add_track  <id> - Add a track with the given plugin.
     help            - Print the help menu.
     exit            - Exit the program."#
     }

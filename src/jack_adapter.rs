@@ -60,7 +60,9 @@ impl jack::ProcessHandler for JackProcessHandler {
         self.simian.process(
             ps.n_frames() as usize,
             self.midi_input.iter(ps).map(|m| (m.time as i64, m.bytes)),
-            self.audio_outputs.iter_mut().map(|p| p.as_mut_slice(ps)),
+            match &mut self.audio_outputs {
+                [a, b] => [a.as_mut_slice(ps), b.as_mut_slice(ps)],
+            },
         );
         jack::Control::Continue
     }
