@@ -7,12 +7,6 @@ mod readline;
 mod remote_executor;
 mod simian;
 
-fn new_world_and_features() -> (livi::World, Arc<livi::Features>) {
-    let world = livi::World::new();
-    let features = world.build_features(livi::FeaturesBuilder::default());
-    (world, features)
-}
-
 fn main() {
     env_logger::builder()
         .filter_level(log::LevelFilter::Info)
@@ -71,4 +65,10 @@ fn main() {
             }
         }
     }
+}
+
+fn new_world_and_features() -> (livi::World, Arc<livi::Features>) {
+    let world = livi::World::new();
+    let features = world.build_features(livi::FeaturesBuilder::default());
+    (world, features)
 }

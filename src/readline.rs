@@ -9,7 +9,7 @@ pub struct Readline {
 impl Readline {
     /// Create a new `Readline`.
     pub fn new() -> Result<Self, rustyline::error::ReadlineError> {
-        let history_path = shellexpand::full("~/.config.simian-sonic.history").unwrap();
+        let history_path = shellexpand::full("~/.config/simian-sonic.history").unwrap();
         let config = rustyline::Config::builder()
             .max_history_size(100)?
             .auto_add_history(true)
