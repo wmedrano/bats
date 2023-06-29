@@ -3,47 +3,7 @@ use log::warn;
 /// Reads input from the command line and translates it into commands.
 pub struct Readline {
     history_path: std::path::PathBuf,
-    editor: rustyline::Editor<(), rustyline::history::FileHistory>,
-}
-
-impl Readline {
-    /// Create a new `Readline`.
-    pub fn new() -> Result<Self, rustyline::error::ReadlineError> {
-        let history_path = shellexpand::full("~/.config/simian-sonic.history").unwrap();
-        let config = rustyline::Config::builder()
-            .max_history_size(100)?
-            .auto_add_history(true)
-            .build();
-        let history = rustyline::history::FileHistory::new();
-        let mut editor = rustyline::Editor::with_history(config, history)?;
-        if let Err(err) = editor.load_history(history_path.as_ref()) {
-            warn!(
-                "Could not load history from {}: {}",
-                history_path.as_ref(),
-                err
-            );
-            let _ = std::fs::write(history_path.as_ref(), "");
-        }
-        Ok(Readline {
-            history_path: history_path.as_ref().into(),
-            editor,
-        })
-    }
-
-    /// Read the next command.
-    pub fn readline(&mut self) -> Result<Command, Error> {
-        match self.editor.readline(">> ") {
-            Ok(line) => {
-                if let Err(err) = self.editor.save_history(&self.history_path) {
-                    warn!("Could not save history: {}", err);
-                }
-                Command::parse(&line)
-            }
-            Err(rustyline::error::ReadlineError::Interrupted) => Ok(Command::Exit),
-            Err(rustyline::error::ReadlineError::Eof) => Ok(Command::Help),
-            Err(err) => Err(Error::ReadlineError(err)),
-        }
-    }
+    editor: rustyline::Editor<AutoComplete, rustyline::history::FileHistory>,
 }
 
 /// A command to execute.
@@ -77,6 +37,85 @@ pub enum Error {
     /// An error in `rustyline`.
     ReadlineError(rustyline::error::ReadlineError),
 }
+
+/// The shell auto complete implementation.
+struct AutoComplete {}
+
+impl Readline {
+    /// Create a new `Readline`.
+    pub fn new() -> Result<Self, rustyline::error::ReadlineError> {
+        let history_path = shellexpand::full("~/.config/simian-sonic.history").unwrap();
+        let config = rustyline::Config::builder()
+            .max_history_size(100)?
+            .auto_add_history(true)
+            .build();
+        let history = rustyline::history::FileHistory::new();
+        let mut editor = rustyline::Editor::with_history(config, history)?;
+        editor.set_helper(Some(AutoComplete {}));
+        if let Err(err) = editor.load_history(history_path.as_ref()) {
+            warn!(
+                "Could not load history from {}: {}",
+                history_path.as_ref(),
+                err
+            );
+            let _ = std::fs::write(history_path.as_ref(), "");
+        }
+        Ok(Readline {
+            history_path: history_path.as_ref().into(),
+            editor,
+        })
+    }
+
+    /// Read the next command.
+    pub fn readline(&mut self) -> Result<Command, Error> {
+        match self.editor.readline(">> ") {
+            Ok(line) => {
+                if let Err(err) = self.editor.save_history(&self.history_path) {
+                    warn!("Could not save history: {}", err);
+                }
+                Command::parse(&line)
+            }
+            Err(rustyline::error::ReadlineError::Interrupted) => Ok(Command::Exit),
+            Err(rustyline::error::ReadlineError::Eof) => Ok(Command::Help),
+            Err(err) => Err(Error::ReadlineError(err)),
+        }
+    }
+}
+
+impl rustyline::Helper for AutoComplete {}
+
+impl rustyline::completion::Completer for AutoComplete {
+    type Candidate = String;
+
+    /// Return the completion candidates given a line.
+    fn complete(
+        &self,
+        line: &str,
+        pos: usize,
+        _ctx: &rustyline::Context<'_>,
+    ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
+        let words = line.split(" ");
+        if pos != line.len() || words.clone().count() != 1 {
+            return Ok((0, Vec::with_capacity(0)));
+        }
+        let word = words.last().unwrap_or_default();
+        let cmds = ["add_track", "exit", "help", "list_plugins"];
+        let candidates: Vec<String> = cmds
+            .into_iter()
+            .filter(|c| c.starts_with(word))
+            .map(String::from)
+            .collect();
+        Ok((0, candidates))
+    }
+}
+
+impl rustyline::hint::Hinter for AutoComplete {
+    type Hint = String;
+}
+
+impl rustyline::highlight::Highlighter for AutoComplete {}
+
+impl rustyline::validate::Validator for AutoComplete {}
 
 impl Command {
     /// Parse a command from a line.
