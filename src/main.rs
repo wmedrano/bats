@@ -57,7 +57,20 @@ fn main() {
                                     enabled: true,
                                     volume: 0.25,
                                 };
-                                executor.execute(move |s| s.tracks.push(track)).unwrap();
+                                if let Err(err) = executor
+                                    .execute(move |s| {
+                                        if s.tracks.capacity() == s.tracks.len() {
+                                            return Err(CommandError::TrackCapacityReached(
+                                                s.tracks.capacity(),
+                                            ));
+                                        }
+                                        s.tracks.push(track);
+                                        Ok(())
+                                    })
+                                    .unwrap()
+                                {
+                                    error!("Failed to create track: {:?}", err);
+                                };
                             }
                             Err(err) => error!("{:?}", err),
                         },
@@ -69,16 +82,20 @@ fn main() {
                         None => error!("plugin {} is not valid.", plugin),
                         Some(p) => match unsafe { p.instantiate(features.clone(), sample_rate) } {
                             Ok(plugin_instance) => {
-                                executor
-                                    .execute(move |s| {
-                                        // TODO: Check bounds.
-                                        s.tracks[track].plugin_instances.push(plugin_instance)
+                                if let Err(err) = executor
+                                    .execute(move |s| match s.tracks.get_mut(track) {
+                                        None => Err(CommandError::TrackDoesNotExist(track)),
+                                        Some(t) => Ok(t.plugin_instances.push(plugin_instance)),
                                     })
-                                    .unwrap();
+                                    .unwrap()
+                                {
+                                    error!("Error adding plugin {:?}", err);
+                                }
                             }
                             Err(err) => error!("{:?}", err),
                         },
                     },
+
                     readline::Command::Help => println!("{}", readline::Command::help_str()),
                     readline::Command::Nothing => (),
                     readline::Command::Exit => {
@@ -90,6 +107,12 @@ fn main() {
             }
         }
     }
+}
+
+#[derive(Debug)]
+pub enum CommandError {
+    TrackDoesNotExist(usize),
+    TrackCapacityReached(usize),
 }
 
 fn new_world_and_features() -> (livi::World, Arc<livi::Features>) {

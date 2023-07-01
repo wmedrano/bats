@@ -96,7 +96,7 @@ impl rustyline::completion::Completer for AutoComplete {
         pos: usize,
         _ctx: &rustyline::Context<'_>,
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
-        let words = line.trim().split(" ");
+        let words = line.trim().split_whitespace();
         let word_count = words.clone().count();
         if pos != line.len() || word_count != 1 {
             return Ok((0, Vec::with_capacity(0)));
