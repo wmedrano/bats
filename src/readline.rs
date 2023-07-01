@@ -11,6 +11,8 @@ pub struct Readline {
 pub enum Command {
     /// List all plugins.
     ListPlugins,
+    /// List all tracks.
+    ListTracks,
     /// Create a new track with the given plugin index.
     AddTrack(usize),
     /// Instantiate a plugin to a track.
@@ -128,6 +130,7 @@ impl Command {
             "help" => Ok(Command::Help),
             "" => Ok(Command::Nothing),
             "list_plugins" => Ok(Command::ListPlugins),
+            "list_tracks" => Ok(Command::ListTracks),
             "add_track" => match parts.next().map(|s| -> Result<usize, _> { s.parse() }) {
                 None => Err(Error::NotEnoughArgumentsForCommand {
                     command: "add_track",
@@ -166,6 +169,7 @@ impl Command {
     pub fn help_str() -> &'static str {
         r#"Commands:
     list_plugins                - List all available plugins.
+    list_tracks                 - List all tracks.
     add_track <plugin>          - Add a track with the given plugin.
     add_plugin <track> <plugin> - Add to the track the given plugin.
     help                        - Print the help menu.

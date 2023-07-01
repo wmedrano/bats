@@ -43,6 +43,12 @@ fn main() {
                             println!("{}: {}", idx, p.name());
                         }
                     }
+                    readline::Command::ListTracks => {
+                        let track_count = executor.execute(|s| s.tracks.len()).unwrap();
+                        for track_idx in 0..track_count {
+                            println!("Track {track_idx}");
+                        }
+                    }
                     readline::Command::AddTrack(plugin_index) => match world
                         .iter_plugins()
                         .nth(plugin_index)
