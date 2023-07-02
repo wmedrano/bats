@@ -1,3 +1,5 @@
+use std::borrow::{Borrow, BorrowMut};
+
 use log::error;
 
 use crate::{remote_executor::RemoteExecutor, track::Track};
@@ -82,11 +84,11 @@ impl Simian {
     }
 
     /// Process all tracks and write the results to out.
-    fn process_tracks<'a>(
+    fn process_tracks(
         frames: usize,
         tracks: &mut [Track],
         atom_sequence: &livi::event::LV2AtomSequence,
-        mut audio_out: [&'a mut [f32]; 2],
+        mut audio_out: [&mut [f32]; 2],
         buffer: &mut [f32],
     ) {
         for slice in audio_out.iter_mut() {
@@ -110,13 +112,13 @@ impl Simian {
                     .with_audio_inputs(
                         tmp_in
                             .iter()
-                            .map(|s| s.as_ref())
+                            .map(Borrow::borrow)
                             .take(port_counts.audio_inputs),
                     )
                     .with_audio_outputs(
                         tmp_out
                             .iter_mut()
-                            .map(|s| s.as_mut())
+                            .map(BorrowMut::borrow_mut)
                             .take(port_counts.audio_outputs),
                     )
                     .with_atom_sequence_inputs(
