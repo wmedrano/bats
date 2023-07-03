@@ -1,9 +1,7 @@
-use std::sync::Arc;
+use std::{ffi::CStr, sync::Arc};
 
-use crate::{
-    flashkick::Scm, jack_adapter::JackProcessHandler, remote_executor::RemoteExecutor, track::Track,
-};
-use guile_3_sys::scm_c_define_gsubr;
+use crate::{jack_adapter::JackProcessHandler, remote_executor::RemoteExecutor, track::Track};
+use flashkick::Scm;
 use lazy_static::lazy_static;
 use log::{error, info, warn};
 
@@ -14,17 +12,41 @@ pub unsafe fn register_functions() {
         // responsiveness.
         let _ = &*STATE;
     });
-    scm_c_define_gsubr(b"plugins\0".as_ptr() as _, 0, 0, 0, plugins as _);
-    scm_c_define_gsubr(b"make-track\0".as_ptr() as _, 0, 0, 0, make_track as _);
-    scm_c_define_gsubr(
-        b"instantiate-plugin\0".as_ptr() as _,
+    flashkick::define_subr(
+        CStr::from_bytes_with_nul(b"plugins\0").unwrap(),
+        0,
+        0,
+        0,
+        plugins as _,
+    );
+    flashkick::define_subr(
+        CStr::from_bytes_with_nul(b"make-track\0").unwrap(),
+        0,
+        0,
+        0,
+        make_track as _,
+    );
+    flashkick::define_subr(
+        CStr::from_bytes_with_nul(b"instantiate-plugin\0").unwrap(),
         2,
         0,
         0,
         instantiate_plugin as _,
     );
-    scm_c_define_gsubr(b"delete-track\0".as_ptr() as _, 1, 0, 0, delete_track as _);
-    scm_c_define_gsubr(b"track-count\0".as_ptr() as _, 0, 0, 0, track_count as _);
+    flashkick::define_subr(
+        CStr::from_bytes_with_nul(b"delete-track\0").unwrap(),
+        1,
+        0,
+        0,
+        delete_track as _,
+    );
+    flashkick::define_subr(
+        CStr::from_bytes_with_nul(b"track-count\0").unwrap(),
+        0,
+        0,
+        0,
+        track_count as _,
+    );
 }
 
 struct State {

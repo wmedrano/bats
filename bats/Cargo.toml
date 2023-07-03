@@ -1,0 +1,15 @@
+[package]
+name = "bats"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+crossbeam-channel = "0.5"
+env_logger = "0.10"
+flashkick = { path = "../flashkick" }
+jack = "0.11"
+lazy_static = "1.4"
+livi = "0.7"
+log = "0.4"
