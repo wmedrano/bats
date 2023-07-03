@@ -46,6 +46,27 @@ Instantiate plugin with `plugin-id` and add it to `track-index. Returns
 
 Delete the track at `track-index`.
 
-## `track-count`
+## `tracks`
 
-Returns the number of tracks.
+Returns all the tracks.
+
+```lisp
+scheme@(guile-user)> (tracks)
+(((plugin-count . 1)
+  (volume . 0.5)
+  (enabled? . #t)
+  (track-idx . 0))
+ ((plugin-count . 1)
+  (volume . 0.3)
+  (enabled? . #f)
+  (track-idx . 1)))
+```
+
+## `settings`
+
+Get the settings for the current session.
+
+```lisp
+scheme@(guile-user)> (settings)
+((cpu-load . 4.25088757276535034) (sample-rate . 48000) (buffer-size . 1024))
+```

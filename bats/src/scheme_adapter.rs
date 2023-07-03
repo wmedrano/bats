@@ -6,12 +6,19 @@ use lazy_static::lazy_static;
 use log::{error, info, warn};
 
 /// Register all scheme functions.
-pub unsafe fn register_functions() {
+pub unsafe fn init_bats() {
     std::thread::spawn(|| {
         // Initialize state in a separate thread to improve
         // responsiveness.
         let _ = &*STATE;
     });
+    flashkick::define_subr(
+        CStr::from_bytes_with_nul(b"settings\0").unwrap(),
+        0,
+        0,
+        0,
+        settings as _,
+    );
     flashkick::define_subr(
         CStr::from_bytes_with_nul(b"plugins\0").unwrap(),
         0,
@@ -41,11 +48,11 @@ pub unsafe fn register_functions() {
         delete_track as _,
     );
     flashkick::define_subr(
-        CStr::from_bytes_with_nul(b"track-count\0").unwrap(),
+        CStr::from_bytes_with_nul(b"tracks\0").unwrap(),
         0,
         0,
         0,
-        track_count as _,
+        tracks as _,
     );
 }
 
@@ -85,6 +92,23 @@ lazy_static! {
             client,
         }
     };
+}
+
+unsafe extern "C" fn settings() -> Scm {
+    let state = &*STATE;
+    Scm::EOL
+        .acons(
+            Scm::with_symbol("buffer-size"),
+            state.client.as_client().buffer_size(),
+        )
+        .acons(
+            Scm::with_symbol("sample-rate"),
+            state.client.as_client().sample_rate() as u32,
+        )
+        .acons(
+            Scm::with_symbol("cpu-load"),
+            state.client.as_client().cpu_load(),
+        )
 }
 
 unsafe extern "C" fn plugins() -> Scm {
@@ -176,7 +200,33 @@ unsafe extern "C" fn delete_track(track_idx: Scm) -> Scm {
     Scm::new(maybe_track.is_some())
 }
 
-unsafe extern "C" fn track_count() -> Scm {
-    let count = STATE.executor.execute(|s| s.tracks.len()).unwrap();
-    Scm::new(count as u32)
+unsafe extern "C" fn tracks() -> Scm {
+    struct TrackInfo {
+        plugin_count: u8,
+        volume: f32,
+        enabled: bool,
+    }
+    let mut tracks = Vec::with_capacity(64);
+    let tracks = STATE
+        .executor
+        .execute(move |s| {
+            tracks.extend(s.tracks.iter().map(|t| TrackInfo {
+                plugin_count: t.plugin_instances.len() as u8,
+                volume: t.volume,
+                enabled: t.enabled,
+            }));
+            tracks
+        })
+        .unwrap();
+    let idx_key = Scm::with_symbol("track-idx");
+    let volume_key = Scm::with_symbol("volume");
+    let enabled_key = Scm::with_symbol("enabled?");
+    let plugin_count_key = Scm::with_symbol("plugin-count");
+    Scm::from_exact_iter(tracks.iter().enumerate().map(|(idx, t)| {
+        Scm::EOL
+            .acons(idx_key, idx as u32)
+            .acons(enabled_key, t.enabled)
+            .acons(volume_key, t.volume)
+            .acons(plugin_count_key, t.plugin_count)
+    }))
 }

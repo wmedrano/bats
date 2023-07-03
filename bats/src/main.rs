@@ -18,5 +18,5 @@ fn main() {
 }
 
 extern "C" fn inner_main(_argc: i32, _argv: *mut *mut i8) {
-    unsafe { scheme_adapter::register_functions() };
+    unsafe { scheme_adapter::init_bats() };
 }

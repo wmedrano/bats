@@ -1,12 +1,12 @@
 use guile_3_sys::*;
 
-/// A drop in replacement for SCM type with extra helpers.
+/// A drop in replacement for c SCM type with extra helpers.
 #[repr(transparent)]
 #[derive(Copy, Clone, Debug)]
 pub struct Scm(SCM);
 
 impl Scm {
-    /// The emtpy list object: '().
+    /// The empty list object: '().
     pub const EOL: Scm = Scm(scm_makiflag_bits(3) as SCM);
     /// The true value: #t.
     pub const TRUE: Scm = Scm(scm_makiflag_bits(4) as SCM);
@@ -19,15 +19,15 @@ impl Scm {
         obj.to_scm()
     }
 
-    /// Returns the underlying `SCM` object.
-    pub unsafe fn raw(self) -> SCM {
-        self.0
-    }
-
     /// Create a new `Scm` object with the `s` as a symbol.
     pub unsafe fn with_symbol(s: &str) -> Self {
         let raw = unsafe { scm_string_to_symbol(s.to_scm().raw()) };
         raw.to_scm()
+    }
+
+    /// Returns the underlying `SCM` object.
+    pub unsafe fn raw(self) -> SCM {
+        self.0
     }
 
     /// Create a list from `iter` where `iter`:
@@ -111,6 +111,12 @@ impl ToScm for bool {
     }
 }
 
+impl ToScm for u8 {
+    unsafe fn to_scm(self) -> Scm {
+        unsafe { scm_from_uint8(self).to_scm() }
+    }
+}
+
 impl ToScm for u32 {
     unsafe fn to_scm(self) -> Scm {
         unsafe { scm_from_uint32(self).to_scm() }
@@ -120,6 +126,18 @@ impl ToScm for u32 {
 impl ToScm for u64 {
     unsafe fn to_scm(self) -> Scm {
         unsafe { scm_from_uint64(self).to_scm() }
+    }
+}
+
+impl ToScm for f32 {
+    unsafe fn to_scm(self) -> Scm {
+        (self as f64).to_scm()
+    }
+}
+
+impl ToScm for f64 {
+    unsafe fn to_scm(self) -> Scm {
+        unsafe { scm_from_double(self).to_scm() }
     }
 }
 
