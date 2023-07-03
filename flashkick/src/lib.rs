@@ -42,7 +42,10 @@ fn boot(
 /// `req`  - The number of required arguments.
 /// `opt`  - The number of optional arguments.
 /// `rst`  - The number of rest arguments.
-/// `fcn`  - The function implementation.
+/// `fcn`  - The function implementation. The function must be of type
+///          `extern "C"` or `unsafe extern "C"`. It must take the
+///          appropriate amount of `Scm` as arguments and return a
+///          single `Scm` object.
 pub unsafe fn define_subr(name: &CStr, req: usize, opt: usize, rst: usize, fcn: scm_t_subr) -> Scm {
     scm::Scm::new(scm_c_define_gsubr(
         name.as_ptr(),

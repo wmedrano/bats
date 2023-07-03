@@ -6,12 +6,15 @@ use lazy_static::lazy_static;
 use log::{error, info, warn};
 
 /// Register all scheme functions.
-pub unsafe fn init_bats() {
-    std::thread::spawn(|| {
-        // Initialize state in a separate thread to improve
-        // responsiveness.
-        let _ = &*STATE;
-    });
+#[no_mangle]
+pub unsafe extern "C" fn init_bats() {
+    flashkick::define_subr(
+        CStr::from_bytes_with_nul(b"ensure-init\0").unwrap(),
+        0,
+        0,
+        0,
+        ensure_init as _,
+    );
     flashkick::define_subr(
         CStr::from_bytes_with_nul(b"settings\0").unwrap(),
         0,
@@ -61,6 +64,7 @@ struct State {
     world: livi::World,
     features: Arc<livi::Features>,
     client: jack::AsyncClient<(), JackProcessHandler>,
+    next_id: std::sync::atomic::AtomicU32,
 }
 
 lazy_static! {
@@ -90,8 +94,14 @@ lazy_static! {
             world,
             features,
             client,
+            next_id: 1.into(),
         }
     };
+}
+
+unsafe extern "C" fn ensure_init() -> Scm {
+    let _ = &*STATE;
+    Scm::TRUE
 }
 
 unsafe extern "C" fn settings() -> Scm {
@@ -136,13 +146,18 @@ unsafe extern "C" fn plugins() -> Scm {
     }))
 }
 
-unsafe extern "C" fn instantiate_plugin(track: Scm, plugin_id: Scm) -> Scm {
-    let track_idx = u32::from_scm(track) as usize;
+unsafe extern "C" fn instantiate_plugin(track_id: Scm, plugin_id: Scm) -> Scm {
+    let track_id = u32::from_scm(track_id);
     if plugin_id.length() != 2 {
+        warn!(
+            "Expected plugin-id as pair but got length {}.",
+            plugin_id.length()
+        );
         return false.to_scm();
     }
     let plugin_ns = String::from_scm(plugin_id.list_ref(0).symbol_to_str().to_scm());
     if plugin_ns != "lv2" {
+        warn!("Plugin id space {:?} not recognized.", plugin_ns);
         return false.to_scm();
     }
     let plugin_uri = String::from_scm(plugin_id.list_ref(1));
@@ -162,43 +177,45 @@ unsafe extern "C" fn instantiate_plugin(track: Scm, plugin_id: Scm) -> Scm {
     };
     let did_add = STATE
         .executor
-        .execute(move |s| match s.tracks.get_mut(track_idx) {
-            None => false,
-            Some(t) => {
-                t.plugin_instances.push(plugin_instance);
-                true
-            }
-        })
+        .execute(
+            move |s| match s.tracks.iter_mut().find(|t| t.id == track_id) {
+                None => false,
+                Some(t) => {
+                    t.plugin_instances.push(plugin_instance);
+                    true
+                }
+            },
+        )
         .unwrap();
     did_add.to_scm()
 }
 
 unsafe extern "C" fn make_track() -> Scm {
+    let id = STATE
+        .next_id
+        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let track = Track {
+        id,
         plugin_instances: Vec::with_capacity(16),
         enabled: true,
         volume: 0.5,
     };
-    let track_idx = STATE
+    STATE
         .executor
         .execute(move |s| {
             s.tracks.push(track);
-            s.tracks.len() - 1
         })
         .unwrap();
-    Scm::new(track_idx as u32)
+    Scm::new(id)
 }
 
-unsafe extern "C" fn delete_track(track_idx: Scm) -> Scm {
-    let track_idx = u32::from_scm(track_idx) as usize;
+unsafe extern "C" fn delete_track(id: Scm) -> Scm {
+    let id = u32::from_scm(id);
     let maybe_track = STATE
         .executor
-        .execute(move |s| {
-            if track_idx < s.tracks.len() {
-                Some(s.tracks.remove(track_idx))
-            } else {
-                None
-            }
+        .execute(move |s| -> Option<Track> {
+            let idx = s.tracks.iter().position(|t| t.id == id)?;
+            Some(s.tracks.remove(idx))
         })
         .unwrap();
     Scm::new(maybe_track.is_some())
@@ -206,6 +223,7 @@ unsafe extern "C" fn delete_track(track_idx: Scm) -> Scm {
 
 unsafe extern "C" fn tracks() -> Scm {
     struct TrackInfo {
+        id: u32,
         plugin_count: u8,
         volume: f32,
         enabled: bool,
@@ -215,6 +233,7 @@ unsafe extern "C" fn tracks() -> Scm {
         .executor
         .execute(move |s| {
             tracks.extend(s.tracks.iter().map(|t| TrackInfo {
+                id: t.id,
                 plugin_count: t.plugin_instances.len() as u8,
                 volume: t.volume,
                 enabled: t.enabled,
@@ -222,13 +241,13 @@ unsafe extern "C" fn tracks() -> Scm {
             tracks
         })
         .unwrap();
-    let idx_key = Scm::with_symbol("track-idx");
+    let id_key = Scm::with_symbol("id");
     let volume_key = Scm::with_symbol("volume");
     let enabled_key = Scm::with_symbol("enabled?");
     let plugin_count_key = Scm::with_symbol("plugin-count");
-    Scm::from_exact_iter(tracks.iter().enumerate().map(|(idx, t)| {
+    Scm::from_exact_iter(tracks.iter().map(|t| {
         Scm::EOL
-            .acons(idx_key, idx as u32)
+            .acons(id_key, t.id)
             .acons(enabled_key, t.enabled)
             .acons(volume_key, t.volume)
             .acons(plugin_count_key, t.plugin_count)

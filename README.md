@@ -8,6 +8,15 @@ Bats is a DAW that is a work in progress.
 
 Bats should be lightweight enough to run on a Raspberry Pi.
 
+# Compile
+
+TODO: Add dependencies and test through CI.
+
+```shell
+cargo build
+guile -l main.scm
+```
+
 # API
 
 The supported Bats interface is through Guile Scheme. More details
@@ -35,16 +44,17 @@ Return the list of plugins.
 
 ## `make-track`
 
-Create a new track and return its index.
+Create a new track and return its id.
 
-## `instantiate-plugin` (track-index plugin-id)
+## `instantiate-plugin` (track-id plugin-id)
 
-Instantiate plugin with `plugin-id` and add it to `track-index. Returns
+Instantiate plugin with `plugin-id` and add it to `track-id`. Returns
 `#t` if successful or `#f` if not.
 
-## `delete-track` (track-index)
+## `delete-track` (track-id)
 
-Delete the track at `track-index`.
+Delete the track with the given id `track-id`. Returns `#t` if
+successful or `#f` if not.
 
 ## `tracks`
 

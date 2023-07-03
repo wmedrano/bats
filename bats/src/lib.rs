@@ -3,17 +3,16 @@ use log::info;
 mod bats;
 mod jack_adapter;
 mod remote_executor;
-mod scheme_lib;
 mod track;
 
-fn main() {
+pub mod scheme_lib;
+
+pub fn run_guile_scheme() {
     env_logger::builder()
         .filter_level(log::LevelFilter::Warn)
         .init();
-
     let args = std::env::args();
     info!("{:?}", args);
-
     flashkick::boot_with_shell(args, inner_main);
 }
 

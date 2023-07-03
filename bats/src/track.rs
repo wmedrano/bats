@@ -1,5 +1,7 @@
 /// Contains  information for a single track.
 pub struct Track {
+    /// An identifier for this track.
+    pub id: u32,
     /// The plugin instance on the track.
     pub plugin_instances: Vec<livi::Instance>,
     /// If the track  should be enabled.
