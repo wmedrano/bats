@@ -6,6 +6,9 @@ use lazy_static::lazy_static;
 use log::{error, info, warn};
 
 /// Register all scheme functions.
+///
+/// # Safety
+/// Registers functions with scheme which may be unsafe.
 #[no_mangle]
 pub unsafe extern "C" fn init_bats() {
     flashkick::define_subr(

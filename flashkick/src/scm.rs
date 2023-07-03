@@ -15,17 +15,25 @@ impl Scm {
     /// The ELisp nil value.
     pub const ELISP_NIL: Scm = Scm(scm_makiflag_bits(1) as SCM);
 
+    /// # Safety
+    /// Uses unsafe `ToScm` functions.
     pub unsafe fn new<T: ToScm>(obj: T) -> Scm {
         obj.to_scm()
     }
 
     /// Create a new `Scm` object with the `s` as a symbol.
+    ///
+    /// # Safety
+    /// Uses unsafe `ToScm` functions.
     pub unsafe fn with_symbol(s: &str) -> Self {
         let raw = unsafe { scm_string_to_symbol(s.to_scm().raw()) };
         raw.to_scm()
     }
 
     /// Returns the underlying `SCM` object.
+    ///
+    /// # Safety
+    /// Uses unsafe `ToScm` functions.
     pub unsafe fn raw(self) -> SCM {
         self.0
     }
@@ -33,6 +41,9 @@ impl Scm {
     /// Create a list from `iter` where `iter`:
     ///   - Has a known size. Enforced by the `ExactSizeIterator` constraint.
     ///   - Iterates over elements that can be converted to `Scm` objects.
+    ///
+    /// # Safety
+    /// Uses unsafe `ToScm` functions.
     pub unsafe fn from_exact_iter<T: ToScm, I: ExactSizeIterator + Iterator<Item = T>>(
         iter: I,
     ) -> Scm {
@@ -47,24 +58,36 @@ impl Scm {
 
     /// Add a new key and value to an associated list. This function returns the new list and does
     /// not modify the original list. Equivalent to calling `(acons key value self)` in scheme.
+    ///
+    /// # Safety
+    /// Uses unsafe `ToScm` functions.
     pub unsafe fn acons<K: ToScm, V: ToScm>(self, key: K, value: V) -> Scm {
         let alist = unsafe { scm_acons(key.to_scm().0, value.to_scm().0, self.raw()) };
         alist.to_scm()
     }
 
     /// Return the `k`th element of the list. Equivalent to calling `(list-ref self k)` in Scheme.
+    ///
+    /// # Safety
+    /// Uses unsafe `ToScm` functions.
     pub unsafe fn list_ref(self, k: usize) -> Scm {
         let v = unsafe { scm_list_ref(self.0, Scm::new(k as u32).raw()) };
         Scm::new(v)
     }
 
     /// Get the length of the list. Equivalent to calling `(length self)` in Scheme.
+    ///
+    /// # Safety
+    /// Uses unsafe `ToScm` functions.
     pub unsafe fn length(self) -> usize {
         let scm_len = Scm::new(unsafe { scm_length(self.raw()) });
         u64::from_scm(scm_len) as usize
     }
 
     /// Convert a symbol to a string. Equivalent to calling `(symbol-to-string self)` in Scheme.
+    ///
+    /// # Safety
+    /// Uses unsafe `ToScm` functions.
     pub unsafe fn symbol_to_str(self) -> Scm {
         let scm_str = unsafe { scm_symbol_to_string(self.0) };
         Scm::new(scm_str)
@@ -74,6 +97,9 @@ impl Scm {
 /// Convert objects from `Scm`.
 pub trait ToScm {
     /// Convert a `self` to  `Scm`.
+    ///
+    /// # Safety
+    /// Conversions may or may not be safe.
     unsafe fn to_scm(self) -> Scm;
 }
 

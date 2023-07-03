@@ -46,6 +46,9 @@ fn boot(
 ///          `extern "C"` or `unsafe extern "C"`. It must take the
 ///          appropriate amount of `Scm` as arguments and return a
 ///          single `Scm` object.
+///
+/// # Safety
+/// Undefined behavior if `fcn` does not have the right signature.
 pub unsafe fn define_subr(name: &CStr, req: usize, opt: usize, rst: usize, fcn: scm_t_subr) -> Scm {
     scm::Scm::new(scm_c_define_gsubr(
         name.as_ptr(),
