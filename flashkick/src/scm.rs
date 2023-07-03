@@ -71,7 +71,9 @@ impl Scm {
     }
 }
 
+/// Convert objects from `Scm`.
 pub trait ToScm {
+    /// Convert a `self` to  `Scm`.
     unsafe fn to_scm(self) -> Scm;
 }
 
@@ -162,7 +164,9 @@ impl<T: ToScm> ToScm for Option<T> {
     }
 }
 
+/// Convert from `Scm` objects.
 pub trait FromScm {
+    /// Convert a `scm` to  `Self`.
     fn from_scm(scm: Scm) -> Self;
 }
 

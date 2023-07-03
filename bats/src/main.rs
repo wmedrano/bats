@@ -3,7 +3,7 @@ use log::info;
 mod bats;
 mod jack_adapter;
 mod remote_executor;
-mod scheme_adapter;
+mod scheme_lib;
 mod track;
 
 fn main() {
@@ -18,5 +18,5 @@ fn main() {
 }
 
 extern "C" fn inner_main(_argc: i32, _argv: *mut *mut i8) {
-    unsafe { scheme_adapter::init_bats() };
+    unsafe { scheme_lib::init_bats() };
 }

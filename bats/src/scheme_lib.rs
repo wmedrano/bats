@@ -109,6 +109,10 @@ unsafe extern "C" fn settings() -> Scm {
             Scm::with_symbol("cpu-load"),
             state.client.as_client().cpu_load(),
         )
+        .acons(
+            Scm::with_symbol("client-name"),
+            state.client.as_client().name(),
+        )
 }
 
 unsafe extern "C" fn plugins() -> Scm {
