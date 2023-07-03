@@ -1,9 +1,9 @@
-use crate::simian::Simian;
+use crate::bats::Bats;
 
 /// Contains a callable function.
 pub struct RawFn {
     /// A callable function.
-    pub f: Box<dyn Send + FnOnce(&mut Simian)>,
+    pub f: Box<dyn Send + FnOnce(&mut Bats)>,
 }
 
 /// A struct that can execute code on an object that is running on a different thread.
@@ -18,7 +18,7 @@ impl RemoteExecutor {
     }
 
     /// Call for `f` to be executed. This will send `f` to be executed but will not block.
-    fn execute_async(&self, f: impl 'static + Send + FnOnce(&mut Simian)) {
+    fn execute_async(&self, f: impl 'static + Send + FnOnce(&mut Bats)) {
         let raw_fn = RawFn {
             f: Box::new(move |s| {
                 f(s);
@@ -31,7 +31,7 @@ impl RemoteExecutor {
     /// remote object has received and executed `f`.
     pub fn execute<T: 'static + Send>(
         &self,
-        f: impl 'static + Send + FnOnce(&mut Simian) -> T,
+        f: impl 'static + Send + FnOnce(&mut Bats) -> T,
     ) -> Result<T, crossbeam_channel::RecvError> {
         let (tx, rx) = crossbeam_channel::bounded(1);
         self.execute_async(move |s| {

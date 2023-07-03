@@ -1,11 +1,11 @@
 use jack::PortSpec;
 
-use crate::simian::Simian;
+use crate::bats::Bats;
 
 /// Handles processing for JACK.
 pub struct JackProcessHandler {
     /// The plugin instance to run or `None` if no plugin should be running.
-    pub simian: Simian,
+    pub bats: Bats,
 
     /// The JACK audio ports to output to.
     audio_outputs: [jack::Port<jack::AudioOut>; 2],
@@ -21,9 +21,9 @@ impl JackProcessHandler {
             c.register_port("out2", jack::AudioOut)?,
         ];
         let midi_input = c.register_port("midi", jack::MidiIn)?;
-        let simian = Simian::new(features);
+        let bats = Bats::new(features);
         Ok(JackProcessHandler {
-            simian,
+            bats,
             audio_outputs,
             midi_input,
         })
@@ -57,7 +57,7 @@ impl JackProcessHandler {
 impl jack::ProcessHandler for JackProcessHandler {
     /// Process data for JACK.
     fn process(&mut self, _: &jack::Client, ps: &jack::ProcessScope) -> jack::Control {
-        self.simian.process(
+        self.bats.process(
             ps.n_frames() as usize,
             self.midi_input.iter(ps).map(|m| (m.time as i64, m.bytes)),
             match &mut self.audio_outputs {

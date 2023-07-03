@@ -37,7 +37,7 @@ struct State {
 lazy_static! {
     static ref STATE: State = {
         let (client, status) =
-            jack::Client::new("simian-sonic", jack::ClientOptions::NO_START_SERVER).unwrap();
+            jack::Client::new("bats", jack::ClientOptions::NO_START_SERVER).unwrap();
         let sample_rate = client.sample_rate() as f64;
         info!(
             "Created {}(sample_rate={sample_rate}) with status {status:?}.",
@@ -51,7 +51,7 @@ lazy_static! {
         }
         .build(&world);
         let mut process_handler = JackProcessHandler::new(&client, &features).unwrap();
-        let executor = process_handler.simian.reset_remote_executor(1);
+        let executor = process_handler.bats.reset_remote_executor(1);
         if let Err(err) = process_handler.connect_ports(&client) {
             warn!("Failed to autoconnect ports: {:?}", err);
         };

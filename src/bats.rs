@@ -5,7 +5,7 @@ use log::error;
 use crate::{remote_executor::RemoteExecutor, track::Track};
 
 /// Handles audio processing.
-pub struct Simian {
+pub struct Bats {
     /// The plugin instance to run or `None` if no plugin should be running.
     pub tracks: Vec<Track>,
 
@@ -20,13 +20,13 @@ pub struct Simian {
     buffer: Vec<f32>,
 }
 
-impl Simian {
+impl Bats {
     /// Create a new `ProcessHandler`.
     pub fn new(features: &livi::Features) -> Self {
         let atom_sequence_input = livi::event::LV2AtomSequence::new(features, 4096);
         let midi_urid = features.midi_urid();
         let (_, remote_fns) = crossbeam_channel::bounded(1);
-        Simian {
+        Bats {
             tracks: Vec::with_capacity(64),
             atom_sequence_input,
             midi_urid,

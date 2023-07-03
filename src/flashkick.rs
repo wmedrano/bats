@@ -162,6 +162,16 @@ impl From<Scm> for String {
     }
 }
 
+impl From<Scm> for String {
+    fn from(scm: Scm) -> String {
+        unsafe {
+            let mut len = 0;
+            let ptr = scm_to_utf8_stringn(scm.0, &mut len) as *mut u8;
+            String::from_raw_parts(ptr, len as usize, len as usize)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use guile_3_sys::scm_nil_p;

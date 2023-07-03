@@ -3,11 +3,11 @@ use std::ffi::{c_char, c_void, CString};
 use guile_3_sys::{scm_boot_guile, scm_shell};
 use log::info;
 
+mod bats;
 mod flashkick;
 mod jack_adapter;
 mod remote_executor;
 mod scheme_adapter;
-mod simian;
 mod track;
 
 fn main() {
