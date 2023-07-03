@@ -1,7 +1,7 @@
 use std::{ffi::CStr, sync::Arc};
 
 use crate::{jack_adapter::JackProcessHandler, remote_executor::RemoteExecutor, track::Track};
-use flashkick::Scm;
+use flashkick::{FromScm, Scm, ToScm};
 use lazy_static::lazy_static;
 use log::{error, info, warn};
 
@@ -96,31 +96,31 @@ unsafe extern "C" fn plugins() -> Scm {
     Scm::from_exact_iter(STATE.world.iter_plugins().map(move |p| {
         Scm::EOL
             .acons(is_instrument_key, p.is_instrument())
-            .acons(name_key, p.name())
+            .acons(name_key, p.name().as_str())
             .acons(
                 id_key,
-                Scm::from_exact_iter([Scm::from(lv2_sym), Scm::from(p.uri())].into_iter()),
+                Scm::from_exact_iter([Scm::new(lv2_sym), Scm::new(p.uri())].into_iter()),
             )
             .acons(
                 classes_key,
-                Scm::from_exact_iter(p.classes().map(Scm::from)),
+                Scm::from_exact_iter(p.classes().map(|c| c.to_scm())),
             )
     }))
 }
 
 unsafe extern "C" fn instantiate_plugin(track: Scm, plugin_id: Scm) -> Scm {
-    let track_idx = Into::<u32>::into(track) as usize;
+    let track_idx = u32::from_scm(track) as usize;
     if plugin_id.length() != 2 {
-        return false.into();
+        return false.to_scm();
     }
-    let plugin_ns: String = plugin_id.list_ref(0).symbol_to_str().into();
+    let plugin_ns = String::from_scm(plugin_id.list_ref(0).symbol_to_str().to_scm());
     if plugin_ns != "lv2" {
-        return false.into();
+        return false.to_scm();
     }
-    let plugin_uri: String = plugin_id.list_ref(1).into();
+    let plugin_uri = String::from_scm(plugin_id.list_ref(1));
     let plugin = match STATE.world.plugin_by_uri(&plugin_uri) {
         Some(p) => p,
-        None => return false.into(),
+        None => return false.to_scm(),
     };
     let plugin_instance = match plugin.instantiate(
         STATE.features.clone(),
@@ -129,7 +129,7 @@ unsafe extern "C" fn instantiate_plugin(track: Scm, plugin_id: Scm) -> Scm {
         Ok(i) => i,
         Err(err) => {
             error!("Failed to instantiate plugin {plugin_uri}: {:?}", err);
-            return false.into();
+            return false.to_scm();
         }
     };
     let did_add = STATE
@@ -142,7 +142,7 @@ unsafe extern "C" fn instantiate_plugin(track: Scm, plugin_id: Scm) -> Scm {
             }
         })
         .unwrap();
-    did_add.into()
+    did_add.to_scm()
 }
 
 unsafe extern "C" fn make_track() -> Scm {
@@ -158,12 +158,11 @@ unsafe extern "C" fn make_track() -> Scm {
             s.tracks.len() - 1
         })
         .unwrap();
-    Scm::from(track_idx as u32)
+    Scm::new(track_idx as u32)
 }
 
 unsafe extern "C" fn delete_track(track_idx: Scm) -> Scm {
-    let track_idx: u32 = track_idx.into();
-    let track_idx = track_idx as usize;
+    let track_idx = u32::from_scm(track_idx) as usize;
     let maybe_track = STATE
         .executor
         .execute(move |s| {
@@ -174,10 +173,10 @@ unsafe extern "C" fn delete_track(track_idx: Scm) -> Scm {
             }
         })
         .unwrap();
-    Scm::from(maybe_track.is_some())
+    Scm::new(maybe_track.is_some())
 }
 
 unsafe extern "C" fn track_count() -> Scm {
     let count = STATE.executor.execute(|s| s.tracks.len()).unwrap();
-    Scm::from(count as u32)
+    Scm::new(count as u32)
 }
