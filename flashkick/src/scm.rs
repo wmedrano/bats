@@ -5,15 +5,40 @@ use guile_3_sys::*;
 #[derive(Copy, Clone, Debug)]
 pub struct Scm(SCM);
 
+macro_rules! scm_pack {
+    ($x:expr) => {
+        ($x as SCM)
+    };
+}
+
+macro_rules! scm_make_itag8_bits {
+    ($x:expr, $tag:expr) => {
+        ($x << 8) + $tag
+    };
+}
+
+macro_rules! scm_makiflag_bits {
+    ($n:expr) => {
+        scm_make_itag8_bits!($n, scm_tc8_tags_scm_tc8_flag)
+    };
+}
+
 impl Scm {
-    /// The empty list object: '().
-    pub const EOL: Scm = Scm(scm_makiflag_bits(3) as SCM);
-    /// The true value: #t.
-    pub const TRUE: Scm = Scm(scm_makiflag_bits(4) as SCM);
-    /// The false value: #f.
-    pub const FALSE: Scm = Scm(scm_makiflag_bits(0) as SCM);
     /// The ELisp nil value.
-    pub const ELISP_NIL: Scm = Scm(scm_makiflag_bits(1) as SCM);
+    pub const ELISP_NIL: Scm = Scm(scm_pack!(scm_makiflag_bits!(1)));
+
+    /// The empty list object: '().
+    pub const EOL: Scm = Scm(scm_pack!(scm_makiflag_bits!(3)));
+
+    /// The true value: #t.
+    pub const TRUE: Scm = Scm(scm_pack!(scm_makiflag_bits!(4)));
+
+    /// The false value: #f.
+    pub const FALSE: Scm = Scm(scm_pack!(scm_makiflag_bits!(0)));
+
+    pub const UNSPECIFIED: Scm = Scm(scm_pack!(scm_makiflag_bits!(8)));
+    pub const UNDEFINED: Scm = Scm(scm_pack!(scm_makiflag_bits!(9)));
+    pub const EOF_VAL: Scm = Scm(scm_pack!(scm_makiflag_bits!(10)));
 
     /// # Safety
     /// Uses unsafe `ToScm` functions.
@@ -107,14 +132,6 @@ impl Default for Scm {
     fn default() -> Self {
         Self::EOL
     }
-}
-
-const fn scm_make_itag8_bits(x: u32, tag: u32) -> u32 {
-    (x << 8) + tag
-}
-
-const fn scm_makiflag_bits(n: u32) -> u32 {
-    scm_make_itag8_bits(n, scm_tc8_tags_scm_tc8_flag)
 }
 
 impl ToScm for Scm {
@@ -239,7 +256,7 @@ mod tests {
     #[test]
     fn scm_eol_is_nil() {
         unsafe {
-            let got = unsafe { scm_nil_p(Scm::EOL.raw()).to_scm() };
+            let got = scm_nil_p(Scm::EOL.raw()).to_scm();
             assert_eq!(got.raw(), Scm::TRUE.raw());
         }
     }

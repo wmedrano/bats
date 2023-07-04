@@ -10,9 +10,15 @@ Bats is a DAW that is a work in progress.
 
 Bats should be lightweight enough to run on a Raspberry Pi.
 
-# Compile
+# Build
 
-TODO: Add dependencies and test through CI.
+## Dependencies
+
+Bats depends on Guile Scheme, LV2, and Jack. To see a more detailed
+set of dependencies, see the "Install Dependencies" section of
+`./.github/workflows/test.yml`.
+
+## Build Command
 
 ```shell
 cargo build
