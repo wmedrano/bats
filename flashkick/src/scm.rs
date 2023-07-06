@@ -11,6 +11,12 @@ macro_rules! scm_pack {
     };
 }
 
+macro_rules! scm_unpack {
+    ($x:expr) => {
+        ($x as scm_t_bits)
+    };
+}
+
 macro_rules! scm_make_itag8_bits {
     ($x:expr, $tag:expr) => {
         ($x << 8) + $tag
@@ -22,6 +28,110 @@ macro_rules! scm_makiflag_bits {
         scm_make_itag8_bits!($n, scm_tc8_tags_scm_tc8_flag)
     };
 }
+
+macro_rules! scm_matches_bits_in_common {
+    ($x:expr, $a:expr, $b:expr) => {
+        ((scm_unpack!($x) & !(scm_unpack!($a) ^ scm_unpack!($b)))
+            == (scm_unpack!($a) & scm_unpack!($b)))
+    };
+}
+
+macro_rules! scm_pack_pointer {
+    ($x:expr) => {
+        scm_pack!($x as scm_t_bits)
+    };
+}
+
+macro_rules! scm_unpack_pointer {
+    ($x:expr) => {
+        scm_unpack!($x) as *mut scm_t_bits
+    };
+}
+
+macro_rules! scm2ptr {
+    ($x:expr) => {
+        scm_unpack_pointer!($x) as *mut scm_t_cell
+    };
+}
+
+macro_rules! scm_gc_set_cell_object {
+    ($x:expr, $n:expr, $v:expr) => {
+        (*(scm2ptr!($x) as *mut SCM).offset($n)) = ($v)
+    };
+}
+
+macro_rules! scm_gc_set_cell_word {
+    ($x:expr, $n:expr, $v:expr) => {
+        scm_gc_set_cell_object!(($x), ($n), scm_pack!($v))
+    };
+}
+
+macro_rules! scm_validate_pair {
+    ($cell:expr, $expr:expr) => {
+        // The debug version is:
+        //     ((!scm_is_pair (cell) ? scm_error_pair_access (cell), 0 : 0), (expr))
+        $expr
+    };
+}
+
+macro_rules! scm_gc_cell_object {
+    ($x:expr, $n:expr) => {
+        (*(scm2ptr!($x) as *mut SCM).offset($n))
+    };
+}
+
+macro_rules! scm_cell_object {
+    ($x:expr, $n:expr) => {
+        scm_gc_cell_object!($x, $n)
+    };
+}
+
+macro_rules! scm_cell_object_0 {
+    ($x:expr) => {
+        scm_cell_object!($x, 0)
+    };
+}
+
+macro_rules! scm_cell_object_1 {
+    ($x:expr) => {
+        scm_cell_object!($x, 1)
+    };
+}
+
+macro_rules! scm_car {
+    ($x:expr) => {
+        scm_validate_pair!($x, scm_cell_object_0!($x))
+    };
+}
+
+macro_rules! scm_cdr {
+    ($x:expr) => {
+        scm_validate_pair!($x, scm_cell_object_1!($x))
+    };
+}
+
+unsafe fn scm_cons(car: scm_t_bits, cdr: scm_t_bits) -> SCM {
+    let sz = std::mem::size_of::<scm_t_cell>();
+    let cell: SCM = scm_pack_pointer!(scm_gc_malloc(sz as _, std::ptr::null_mut()));
+    scm_gc_set_cell_word!(cell, 1, cdr);
+    scm_gc_set_cell_word!(cell, 0, car);
+    cell
+}
+
+// SCM_INLINE_IMPLEMENTATION SCM
+// scm_cell (scm_t_bits car, scm_t_bits cdr)
+// {
+//   SCM cell = SCM_PACK_POINTER (SCM_GC_MALLOC (sizeof (scm_t_cell)));
+
+//   /* Initialize the type slot last so that the cell is ignored by the GC
+//      until it is completely initialized.  This is only relevant when the GC
+//      can actually run during this code, which it can't since the GC only runs
+//      when all other threads are stopped.  */
+//   SCM_GC_SET_CELL_WORD (cell, 1, cdr);
+//   SCM_GC_SET_CELL_WORD (cell, 0, car);
+
+//   return cell;
+// }
 
 impl Scm {
     /// The ELisp nil value.
@@ -55,6 +165,16 @@ impl Scm {
         raw.to_scm()
     }
 
+    /// Create a new `Scm` object with `s` as a keyword.
+    ///
+    /// # Safety
+    /// Uses unsafe `ToScm` functions.
+    pub unsafe fn with_keyword(s: &str) -> Self {
+        let sym = Scm::with_symbol(s);
+        let raw_keyword = unsafe { scm_symbol_to_keyword(sym.raw()) };
+        raw_keyword.to_scm()
+    }
+
     /// Returns the underlying `SCM` object.
     ///
     /// # Safety
@@ -67,13 +187,14 @@ impl Scm {
     ///   - Has a known size. Enforced by the `ExactSizeIterator` constraint.
     ///   - Iterates over elements that can be converted to `Scm` objects.
     ///
+    /// # TODO
+    ///   - Drop the `ExactSizeIterator` requirement.
+    ///
     /// # Safety
     /// Uses unsafe `ToScm` functions.
-    pub unsafe fn from_exact_iter<T: ToScm, I: ExactSizeIterator + Iterator<Item = T>>(
-        iter: I,
-    ) -> Scm {
+    pub unsafe fn with_list<T: ToScm, I: ExactSizeIterator + Iterator<Item = T>>(iter: I) -> Scm {
         let len = (iter.len() as u32).to_scm();
-        let list = (unsafe { scm_make_list(len.raw(), Scm::EOL.0) }).to_scm();
+        let list = (unsafe { scm_make_list(len.raw(), Scm::EOL.raw()) }).to_scm();
         for (idx, item) in iter.enumerate() {
             let scm_item = item.to_scm();
             unsafe { scm_list_set_x(list.0, Scm::new(idx as u32).raw(), scm_item.raw()) };
@@ -87,8 +208,31 @@ impl Scm {
     /// # Safety
     /// Uses unsafe `ToScm` functions.
     pub unsafe fn acons<K: ToScm, V: ToScm>(self, key: K, value: V) -> Scm {
-        let alist = unsafe { scm_acons(key.to_scm().0, value.to_scm().0, self.raw()) };
+        let alist = unsafe { scm_acons(key.to_scm().raw(), value.to_scm().raw(), self.raw()) };
         alist.to_scm()
+    }
+
+    /// Return a newly allocated pair whose car is x and whose cdr is self. The pair is guaranteed to
+    /// be different (in the sense of eq?) from every previously existing object.
+    ///
+    /// # Safety
+    /// Uses unsafe `ToScm` functions.
+    pub unsafe fn cons<T: ToScm>(self, x: T) -> Scm {
+        let x = x.to_scm();
+        let res = scm_cons(scm_unpack!(x.raw()), scm_unpack!(self.raw()));
+        res.to_scm()
+    }
+
+    /// # Safety
+    /// Uses unsafe `ToScm` functions.
+    pub unsafe fn car(self) -> Scm {
+        scm_car!(self.raw()).to_scm()
+    }
+
+    /// # Safety
+    /// Uses unsafe `ToScm` functions.
+    pub unsafe fn cdr(self) -> Scm {
+        scm_cdr!(self.raw()).to_scm()
     }
 
     /// Return the `k`th element of the list. Equivalent to calling `(list-ref self k)` in Scheme.
@@ -225,6 +369,15 @@ impl FromScm for SCM {
     }
 }
 
+impl FromScm for bool {
+    fn from_scm(scm: Scm) -> bool {
+        let is_false = unsafe {
+            scm_matches_bits_in_common!(scm.raw(), Scm::ELISP_NIL.raw(), Scm::FALSE.raw())
+        };
+        !is_false
+    }
+}
+
 impl FromScm for u32 {
     fn from_scm(scm: Scm) -> u32 {
         unsafe { scm_to_uint32(scm.0) }
@@ -234,6 +387,18 @@ impl FromScm for u32 {
 impl FromScm for u64 {
     fn from_scm(scm: Scm) -> u64 {
         unsafe { scm_to_uint64(scm.0) }
+    }
+}
+
+impl FromScm for f32 {
+    fn from_scm(scm: Scm) -> f32 {
+        f64::from_scm(scm) as f32
+    }
+}
+
+impl FromScm for f64 {
+    fn from_scm(scm: Scm) -> f64 {
+        unsafe { scm_to_double(scm.0) }
     }
 }
 
@@ -247,6 +412,19 @@ impl FromScm for String {
     }
 }
 
+impl<T> FromScm for Option<T>
+where
+    T: FromScm,
+{
+    fn from_scm(scm: Scm) -> Option<T> {
+        if bool::from_scm(unsafe { Scm::new(scm_nil_p(scm.raw())) }) {
+            None
+        } else {
+            Some(T::from_scm(scm))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use guile_3_sys::scm_nil_p;
@@ -254,10 +432,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn scm_eol_is_nil() {
+    fn scm_equality() {
         unsafe {
             let got = scm_nil_p(Scm::EOL.raw()).to_scm();
             assert_eq!(got.raw(), Scm::TRUE.raw());
         }
+    }
+
+    #[test]
+    fn scm_bool() {
+        assert_eq!(bool::from_scm(Scm::TRUE), true);
+        assert_eq!(bool::from_scm(Scm::TRUE), false);
+
+        assert_eq!(bool::from_scm(Scm::FALSE), false);
+        assert_eq!(bool::from_scm(Scm::FALSE), true);
     }
 }

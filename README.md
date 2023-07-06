@@ -1,6 +1,6 @@
 # Overview
 
-Bats is a DAW that is a work in progress.
+bats! is a DAW that is a work in progress.
 
 ![./assets/logo.png](./assets/logo.png)
 
@@ -8,13 +8,13 @@ Bats is a DAW that is a work in progress.
 
 ### Lightweight
 
-Bats should be lightweight enough to run on a Raspberry Pi.
+bats! should be lightweight enough to run on a Raspberry Pi.
 
 # Build
 
 ## Dependencies
 
-Bats depends on Guile Scheme, LV2, and Jack. To see a more detailed
+bats! depends on Guile Scheme, LV2, and Jack. To see a more detailed
 set of dependencies, see the "Install Dependencies" section of
 `./.github/workflows/test.yml`.
 
@@ -22,12 +22,32 @@ set of dependencies, see the "Install Dependencies" section of
 
 ```shell
 cargo build
-guile -l main.scm
+```
+
+## Running
+
+### Cargo Run
+
+bats! can be run with `cargo run`.
+
+```bash
+cargo run
+```
+
+### From Guile Scheme
+
+bats! can also be run directly from Guile. This method may be more
+reliable to integrate with other toos like Emacs Geiser.
+
+```bash
+cargo build
+guile
+(load "main.scm")
 ```
 
 # API
 
-The supported Bats interface is through Guile Scheme. More details
+The supported bats! interface is through Guile Scheme. More details
 on Guile Scheme can be found in  the official [API
 Reference](https://gnu.org/software/guile/manual/html_node/API-Reference.html)
 page.
@@ -50,16 +70,16 @@ Return the list of plugins.
   (instrument? . #f)))
 ```
 
-## `make-track`
+## `make-track!`
 
 Create a new track and return its id.
 
-## `instantiate-plugin` (track-id plugin-id)
+## `instantiate-plugin!` (track-id plugin-id)
 
 Instantiate plugin with `plugin-id` and add it to `track-id`. Returns
 `#t` if successful or `#f` if not.
 
-## `delete-track` (track-id)
+## `delete-track!` (track-id)
 
 Delete the track with the given id `track-id`. Returns `#t` if
 successful or `#f` if not.
@@ -88,3 +108,12 @@ Get the settings for the current session.
 scheme@(guile-user)> (settings)
 ((cpu-load . 4.25088757276535034) (sample-rate . 48000) (buffer-size . 1024))
 ```
+
+## `ensure-init!`
+
+Starts running the bats! audio engine. It this is not run, then the
+audio engine will be will be lazily initialized.
+
+## `activate-logging!`
+
+Enable logging from the audio engine.

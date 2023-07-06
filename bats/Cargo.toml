@@ -3,6 +3,9 @@ name = "bats"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "bats"
+
 [lib]
 crate-type = ["rlib", "cdylib"]
 

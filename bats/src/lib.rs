@@ -8,9 +8,6 @@ mod track;
 pub mod scheme_lib;
 
 pub fn run_guile_scheme() {
-    env_logger::builder()
-        .filter_level(log::LevelFilter::Warn)
-        .init();
     let args = std::env::args();
     info!("{:?}", args);
     flashkick::boot_with_shell(args, inner_main);

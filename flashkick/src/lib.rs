@@ -1,5 +1,6 @@
 use std::ffi::{c_char, c_void, CStr, CString};
 
+pub use guile_3_sys::scm_c_bind_keyword_arguments;
 use guile_3_sys::*;
 pub use scm::*;
 
@@ -57,4 +58,15 @@ pub unsafe fn define_subr(name: &CStr, req: usize, opt: usize, rst: usize, fcn: 
         rst as _,
         fcn,
     ))
+}
+
+pub unsafe fn scm_error(k: Scm, subr: &CStr, message: &CStr, args: Scm, rest: Scm) -> ! {
+    guile_3_sys::scm_error(
+        k.raw(),
+        subr.as_ptr(),
+        message.as_ptr(),
+        args.raw(),
+        rest.raw(),
+    );
+    unreachable!()
 }

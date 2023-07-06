@@ -21,13 +21,16 @@ pub struct Bats {
 }
 
 impl Bats {
+    /// The maximum amount of tracks.
+    pub const TRACKS_CAPACITY: usize = 64;
+
     /// Create a new `ProcessHandler`.
     pub fn new(features: &livi::Features) -> Self {
         let atom_sequence_input = livi::event::LV2AtomSequence::new(features, 4096);
         let midi_urid = features.midi_urid();
         let (_, remote_fns) = crossbeam_channel::bounded(1);
         Bats {
-            tracks: Vec::with_capacity(64),
+            tracks: Vec::with_capacity(Self::TRACKS_CAPACITY),
             atom_sequence_input,
             midi_urid,
             remote_fns,
