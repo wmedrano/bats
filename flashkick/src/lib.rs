@@ -60,6 +60,10 @@ pub unsafe fn define_subr(name: &CStr, req: usize, opt: usize, rst: usize, fcn: 
     ))
 }
 
+/// Raises a Scheme error. This is similar to a Rust panic.
+///
+/// # Safety
+/// Uses unsafe functions.
 pub unsafe fn scm_error(k: Scm, subr: &CStr, message: &CStr, args: Scm, rest: Scm) -> ! {
     guile_3_sys::scm_error(
         k.raw(),

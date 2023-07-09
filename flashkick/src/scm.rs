@@ -7,13 +7,13 @@ pub struct Scm(SCM);
 
 macro_rules! scm_pack {
     ($x:expr) => {
-        ($x as SCM)
+        $x as SCM
     };
 }
 
 macro_rules! scm_unpack {
     ($x:expr) => {
-        ($x as scm_t_bits)
+        $x as scm_t_bits
     };
 }
 
@@ -253,7 +253,11 @@ impl Scm {
         u64::from_scm(scm_len) as usize
     }
 
-    pub unsafe fn iter_list(self) -> impl ExactSizeIterator + Iterator<Item = Scm> {
+    /// Iterate through elements if this is a list.
+    ///
+    /// # Safety
+    /// Uses unsafe functions.
+    pub unsafe fn iter_list(self) -> impl Iterator<Item = Scm> {
         let len = self.length();
         (0..len).map(move |idx| self.list_ref(idx))
     }

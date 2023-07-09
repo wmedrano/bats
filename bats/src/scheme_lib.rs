@@ -266,8 +266,7 @@ unsafe fn track_id_for_plugin_instance(state: &State, plugin_instance_id: u32) -
                 .find(|t| {
                     t.plugin_instances
                         .iter()
-                        .find(|i| i.instance_id == plugin_instance_id)
-                        .is_some()
+                        .any(|i| i.instance_id == plugin_instance_id)
                 })
                 .map(|t| t.id)
         })
