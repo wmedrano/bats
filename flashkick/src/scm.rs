@@ -447,9 +447,8 @@ mod tests {
     #[test]
     fn scm_bool() {
         assert_eq!(bool::from_scm(Scm::TRUE), true);
-        assert_eq!(bool::from_scm(Scm::TRUE), false);
-
         assert_eq!(bool::from_scm(Scm::FALSE), false);
-        assert_eq!(bool::from_scm(Scm::FALSE), true);
+        assert_eq!(bool::from_scm(unsafe { Scm::new(true) }), true);
+        assert_eq!(bool::from_scm(unsafe { Scm::new(false) }), false);
     }
 }
