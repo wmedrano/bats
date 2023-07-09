@@ -1,7 +1,10 @@
 use std::{ffi::CStr, sync::Arc};
 
 use crate::{
-    bats::Bats, jack_adapter::JackProcessHandler, remote_executor::RemoteExecutor, track::Track,
+    bats::Bats,
+    jack_adapter::JackProcessHandler,
+    remote_executor::RemoteExecutor,
+    track::{PluginInstance, Track},
 };
 use flashkick::{FromScm, Scm, ToScm};
 use lazy_static::lazy_static;
@@ -13,13 +16,6 @@ use log::{info, warn};
 /// Registers functions with scheme which may be unsafe.
 #[no_mangle]
 pub unsafe extern "C" fn init_bats() {
-    flashkick::define_subr(
-        CStr::from_bytes_with_nul(b"ensure-init!\0").unwrap(),
-        0,
-        0,
-        0,
-        ensure_init as _,
-    );
     flashkick::define_subr(
         CStr::from_bytes_with_nul(b"activate-logging!\0").unwrap(),
         0,
@@ -63,17 +59,33 @@ pub unsafe extern "C" fn init_bats() {
         delete_track as _,
     );
     flashkick::define_subr(
-        CStr::from_bytes_with_nul(b"tracks\0").unwrap(),
+        CStr::from_bytes_with_nul(b"delete-plugin-instance!\0").unwrap(),
+        1,
+        0,
+        0,
+        delete_plugin_instance as _,
+    );
+    flashkick::define_subr(
+        CStr::from_bytes_with_nul(b"track\0").unwrap(),
+        1,
+        0,
+        0,
+        track as _,
+    );
+
+    flashkick::define_subr(
+        CStr::from_bytes_with_nul(b"track-ids\0").unwrap(),
         0,
         0,
         0,
-        tracks as _,
+        track_ids as _,
     );
 }
 
 struct State {
     executor: RemoteExecutor,
     world: livi::World,
+    urid_to_id: Vec<(String, u32)>,
     features: Arc<livi::Features>,
     client: jack::AsyncClient<(), JackProcessHandler>,
     next_id: std::sync::atomic::AtomicU32,
@@ -89,7 +101,16 @@ lazy_static! {
             client.name()
         );
 
+        let mut next_id = 1;
         let world = livi::World::new();
+        let urid_to_id = {
+            let mut m = Vec::new();
+            for plugin in world.iter_plugins() {
+                m.push((plugin.uri(), next_id));
+                next_id += 1;
+            }
+            m
+        };
         let features = livi::FeaturesBuilder {
             min_block_length: 1,
             max_block_length: client.buffer_size() as usize * 2,
@@ -104,16 +125,19 @@ lazy_static! {
         State {
             executor,
             world,
+            urid_to_id,
             features,
             client,
-            next_id: 1.into(),
+            next_id: next_id.into(),
         }
     };
 }
 
-unsafe extern "C" fn ensure_init() -> Scm {
-    let _ = &*STATE;
-    Scm::TRUE
+impl State {
+    fn claim_id(&self) -> u32 {
+        self.next_id
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    }
 }
 
 unsafe extern "C" fn activate_logging() -> Scm {
@@ -163,8 +187,8 @@ unsafe extern "C" fn plugins() -> Scm {
     }))
 }
 
-unsafe fn scm_to_plugin_instance(state: &State, plugin_id: Scm) -> Option<livi::Instance> {
-    let error_key = Scm::with_symbol("instatiate-plugin-error");
+unsafe fn scm_to_plugin_instance(state: &State, plugin_id: Scm) -> PluginInstance {
+    let error_key = Scm::with_symbol("instantiate-plugin-error");
     let subr = CStr::from_bytes_with_nul(b"instantiate-plugin\0").unwrap();
     let plugin_ns = String::from_scm(plugin_id.car().symbol_to_str().to_scm());
     let plugin_uri = String::from_scm(plugin_id.cdr());
@@ -193,7 +217,16 @@ unsafe fn scm_to_plugin_instance(state: &State, plugin_id: Scm) -> Option<livi::
         state.features.clone(),
         state.client.as_client().sample_rate() as f64,
     ) {
-        Ok(i) => Some(i),
+        Ok(instance) => PluginInstance {
+            instance_id: state.claim_id(),
+            plugin_id: state
+                .urid_to_id
+                .iter()
+                .find(|(uri, _)| uri == plugin_uri.as_str())
+                .unwrap()
+                .1,
+            instance,
+        },
         Err(err) => {
             flashkick::scm_error(
                 Scm::EOL,
@@ -207,13 +240,9 @@ unsafe fn scm_to_plugin_instance(state: &State, plugin_id: Scm) -> Option<livi::
 }
 
 unsafe extern "C" fn instantiate_plugin(track_id: Scm, plugin_id: Scm) -> Scm {
+    let state = &*STATE;
     let track_id = u32::from_scm(track_id);
-    let plugin_instance = match scm_to_plugin_instance(&*STATE, plugin_id) {
-        Some(i) => i,
-        None => {
-            return false.to_scm();
-        }
-    };
+    let plugin_instance = scm_to_plugin_instance(state, plugin_id);
     let did_add = STATE
         .executor
         .execute(
@@ -232,10 +261,10 @@ unsafe extern "C" fn instantiate_plugin(track_id: Scm, plugin_id: Scm) -> Scm {
 unsafe extern "C" fn make_track(rest: Scm) -> Scm {
     let enabled_keyword = Scm::with_keyword("enabled");
     let volume_keyword = Scm::with_keyword("volume");
-    let plugin_id_keyword = Scm::with_keyword("plugin-id");
+    let plugins_keyword = Scm::with_keyword("plugins");
     let mut enabled = Scm::TRUE;
     let mut volume = Scm::new(0.5f32);
-    let mut maybe_plugin_id = Scm::EOL;
+    let mut maybe_plugins = Scm::EOL;
     flashkick::scm_c_bind_keyword_arguments(
         CStr::from_bytes_with_nul(b"make-track\0").unwrap().as_ptr(),
         rest.raw(),
@@ -244,8 +273,8 @@ unsafe extern "C" fn make_track(rest: Scm) -> Scm {
         &mut enabled,
         volume_keyword.raw(),
         &mut volume,
-        plugin_id_keyword,
-        &mut maybe_plugin_id,
+        plugins_keyword,
+        &mut maybe_plugins,
         Scm::UNDEFINED.raw(),
     );
     let state = &*STATE;
@@ -256,12 +285,11 @@ unsafe extern "C" fn make_track(rest: Scm) -> Scm {
         id,
         plugin_instances: {
             let mut ret = Vec::with_capacity(16);
-            if let Some(plugin_id) = Option::from_scm(maybe_plugin_id) {
-                match scm_to_plugin_instance(state, plugin_id) {
-                    Some(i) => ret.push(i),
-                    None => return Scm::EOL,
-                }
-            }
+            ret.extend(
+                maybe_plugins
+                    .iter_list()
+                    .map(|p| scm_to_plugin_instance(state, p)),
+            );
             ret
         },
         enabled: bool::from_scm(enabled),
@@ -288,35 +316,114 @@ unsafe extern "C" fn delete_track(id: Scm) -> Scm {
     Scm::new(maybe_track.is_some())
 }
 
-unsafe extern "C" fn tracks() -> Scm {
+unsafe extern "C" fn delete_plugin_instance(plugin_instance_id: Scm) -> Scm {
+    let state = &*STATE;
+    let plugin_instance_id = u32::from_scm(plugin_instance_id);
+    let track_id = state
+        .executor
+        .execute(move |s| {
+            s.tracks
+                .iter()
+                .find(|t| {
+                    t.plugin_instances
+                        .iter()
+                        .find(|i| i.instance_id == plugin_instance_id)
+                        .is_some()
+                })
+                .map(|t| t.id)
+        })
+        .unwrap()
+        .unwrap_or_else(|| {
+            let subr = CStr::from_bytes_with_nul(b"delete-plugin-instance\0").unwrap();
+            let error_key = Scm::with_symbol("not-found");
+            flashkick::scm_error(
+                error_key,
+                subr,
+                CStr::from_bytes_with_nul(b"Plugin instance ~S not found.\0").unwrap(),
+                Scm::with_list(std::iter::once(Scm::new(plugin_instance_id))),
+                Scm::FALSE,
+            );
+        });
+    let _ = state.executor.execute(move |s| -> PluginInstance {
+        let track = s.tracks.iter_mut().find(|t| t.id == track_id).unwrap();
+        let idx = track
+            .plugin_instances
+            .iter()
+            .position(|pi| pi.instance_id == plugin_instance_id)
+            .unwrap();
+        track.plugin_instances.remove(idx)
+    });
+    Scm::EOL
+}
+
+unsafe extern "C" fn track(id: Scm) -> Scm {
+    struct InstanceInfo {
+        plugin: u32,
+        instance: u32,
+    }
     struct TrackInfo {
         id: u32,
-        plugin_count: u8,
+        plugins: Vec<InstanceInfo>,
         volume: f32,
         enabled: bool,
     }
-    let mut tracks = Vec::with_capacity(Bats::TRACKS_CAPACITY);
-    let tracks = STATE
+    let id = u32::from_scm(id);
+    let mut plugins = Vec::with_capacity(Bats::PLUGIN_INSTANCE_CAPACITY);
+    let maybe_track = STATE
         .executor
-        .execute(move |s| {
-            tracks.extend(s.tracks.iter().map(|t| TrackInfo {
+        .execute(move |s| -> Option<TrackInfo> {
+            let t = s.tracks.iter().find(|t| t.id == id)?;
+            plugins.extend(t.plugin_instances.iter().map(|i| InstanceInfo {
+                plugin: i.plugin_id,
+                instance: i.instance_id,
+            }));
+            Some(TrackInfo {
                 id: t.id,
-                plugin_count: t.plugin_instances.len() as u8,
+                plugins,
                 volume: t.volume,
                 enabled: t.enabled,
-            }));
-            tracks
+            })
         })
         .unwrap();
+    let track = maybe_track.unwrap_or_else(|| {
+        let subr = CStr::from_bytes_with_nul(b"track\0").unwrap();
+        let error_key = Scm::with_symbol("not-found");
+        flashkick::scm_error(
+            error_key,
+            subr,
+            CStr::from_bytes_with_nul(b"Track with id ~S not found.\0").unwrap(),
+            Scm::with_list(std::iter::once(Scm::new(id))),
+            Scm::FALSE,
+        );
+    });
     let id_key = Scm::with_symbol("id");
     let volume_key = Scm::with_symbol("volume");
     let enabled_key = Scm::with_symbol("enabled?");
-    let plugin_count_key = Scm::with_symbol("plugin-count");
-    Scm::with_list(tracks.iter().map(|t| {
+    let plugins_key = Scm::with_symbol("plugins");
+    let plugin_id_key = Scm::with_symbol("plugin-id");
+    let instance_id_key = Scm::with_symbol("instance-id");
+    let plugins = track.plugins.iter().map(|p| {
+        let plugin_id = p.plugin;
+        let instance_id = p.instance;
         Scm::EOL
-            .acons(id_key, t.id)
-            .acons(enabled_key, t.enabled)
-            .acons(volume_key, t.volume)
-            .acons(plugin_count_key, t.plugin_count)
-    }))
+            .acons(plugin_id_key, plugin_id)
+            .acons(instance_id_key, instance_id)
+    });
+    Scm::EOL
+        .acons(plugins_key, Scm::with_list(plugins))
+        .acons(volume_key, track.volume)
+        .acons(enabled_key, track.enabled)
+        .acons(id_key, track.id)
+}
+
+unsafe extern "C" fn track_ids() -> Scm {
+    let mut tracks: Vec<u32> = Vec::with_capacity(Bats::TRACKS_CAPACITY);
+    let tracks = STATE
+        .executor
+        .execute(|s| {
+            tracks.extend(s.tracks.iter().map(|t| t.id));
+            tracks
+        })
+        .unwrap();
+    Scm::with_list(tracks.into_iter())
 }

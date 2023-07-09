@@ -23,6 +23,7 @@ pub struct Bats {
 impl Bats {
     /// The maximum amount of tracks.
     pub const TRACKS_CAPACITY: usize = 64;
+    pub const PLUGIN_INSTANCE_CAPACITY: usize = 32;
 
     /// Create a new `ProcessHandler`.
     pub fn new(features: &livi::Features) -> Self {
@@ -110,7 +111,7 @@ impl Bats {
             }
             for plugin_instance in track.plugin_instances.iter_mut() {
                 std::mem::swap(&mut tmp_in, &mut tmp_out);
-                let port_counts = plugin_instance.port_counts();
+                let port_counts = plugin_instance.instance.port_counts();
                 let ports = livi::EmptyPortConnections::new()
                     .with_audio_inputs(
                         tmp_in
@@ -127,13 +128,13 @@ impl Bats {
                     .with_atom_sequence_inputs(
                         std::iter::once(atom_sequence).take(port_counts.atom_sequence_inputs),
                     );
-                let res = unsafe { plugin_instance.run(frames, ports) };
+                let res = unsafe { plugin_instance.instance.run(frames, ports) };
                 if let Err(err) = res {
                     track.enabled = false;
                     error!("{:?}", err);
                     error!(
                         "Disabling plugin {:?}.",
-                        plugin_instance.raw().instance().uri()
+                        plugin_instance.instance.raw().instance().uri()
                     );
                     continue;
                 }

@@ -253,6 +253,11 @@ impl Scm {
         u64::from_scm(scm_len) as usize
     }
 
+    pub unsafe fn iter_list(self) -> impl ExactSizeIterator + Iterator<Item = Scm> {
+        let len = self.length();
+        (0..len).map(move |idx| self.list_ref(idx))
+    }
+
     /// Convert a symbol to a string. Equivalent to calling `(symbol-to-string self)` in Scheme.
     ///
     /// # Safety
