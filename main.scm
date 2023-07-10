@@ -6,8 +6,12 @@
   "Make a new track with any instrument.
 
 Useful for testing."
-  (let ((instrument (car (instrument-plugins))))
-    (make-track! #:plugins (list (assoc-ref instrument 'id)))))
+  (let* ((instruments (instrument-plugins))
+         (instrument  (car instruments))
+         (id          (assoc-ref instrument 'plugin-id))
+         )
+    (display id)
+    (make-track! #:plugin-ids (list id))))
 
 (activate-logging!)
 (make-track-with-any-instrument!)

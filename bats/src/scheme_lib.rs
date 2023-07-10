@@ -6,7 +6,7 @@ use crate::{
     remote_executor::RemoteExecutor,
     track::{PluginInstance, Track},
 };
-use flashkick::{FromScm, Scm, ToScm};
+use flashkick::Scm;
 use lazy_static::lazy_static;
 use log::{info, warn};
 
@@ -16,63 +16,63 @@ use log::{info, warn};
 /// Registers functions with scheme which may be unsafe.
 #[no_mangle]
 pub unsafe extern "C" fn init_bats() {
-    flashkick::define_subr(
+    define_subr(
         CStr::from_bytes_with_nul(b"activate-logging!\0").unwrap(),
         0,
         0,
         0,
         activate_logging as _,
     );
-    flashkick::define_subr(
+    define_subr(
         CStr::from_bytes_with_nul(b"settings\0").unwrap(),
         0,
         0,
         0,
         settings as _,
     );
-    flashkick::define_subr(
+    define_subr(
         CStr::from_bytes_with_nul(b"plugins\0").unwrap(),
         0,
         0,
         0,
         plugins as _,
     );
-    flashkick::define_subr(
+    define_subr(
         CStr::from_bytes_with_nul(b"make-track!\0").unwrap(),
         0,
         0,
         1,
         make_track as _,
     );
-    flashkick::define_subr(
+    define_subr(
         CStr::from_bytes_with_nul(b"make-plugin-instance!\0").unwrap(),
         2,
         0,
         0,
         make_plugin_instance as _,
     );
-    flashkick::define_subr(
+    define_subr(
         CStr::from_bytes_with_nul(b"plugin-instance\0").unwrap(),
         1,
         0,
         0,
         plugin_instance as _,
     );
-    flashkick::define_subr(
+    define_subr(
         CStr::from_bytes_with_nul(b"delete-track!\0").unwrap(),
         1,
         0,
         0,
         delete_track as _,
     );
-    flashkick::define_subr(
+    define_subr(
         CStr::from_bytes_with_nul(b"delete-plugin-instance!\0").unwrap(),
         1,
         0,
         0,
         delete_plugin_instance as _,
     );
-    flashkick::define_subr(
+    define_subr(
         CStr::from_bytes_with_nul(b"tracks\0").unwrap(),
         0,
         0,
@@ -152,62 +152,76 @@ unsafe extern "C" fn activate_logging() -> Scm {
 
 unsafe extern "C" fn settings() -> Scm {
     let state = &*STATE;
-    Scm::EOL
-        .acons(
-            Scm::with_symbol("buffer-size"),
-            state.client.as_client().buffer_size(),
-        )
-        .acons(
-            Scm::with_symbol("sample-rate"),
-            state.client.as_client().sample_rate() as u32,
-        )
-        .acons(
-            Scm::with_symbol("cpu-load"),
-            state.client.as_client().cpu_load(),
-        )
-        .acons(
-            Scm::with_symbol("client-name"),
-            state.client.as_client().name(),
-        )
+    Scm::with_alist(
+        [
+            (
+                Scm::new_symbol("buffer-size"),
+                Scm::new_u32(state.client.as_client().buffer_size()),
+            ),
+            (
+                Scm::new_symbol("sample-rate"),
+                Scm::new_u32(state.client.as_client().sample_rate() as u32),
+            ),
+            (
+                Scm::new_symbol("cpu-load"),
+                Scm::new_f64(state.client.as_client().cpu_load() as f64),
+            ),
+            (
+                Scm::new_symbol("client-name"),
+                Scm::new_string(state.client.as_client().name()),
+            ),
+        ]
+        .into_iter(),
+    )
 }
 
 unsafe extern "C" fn plugins() -> Scm {
-    let name_key = Scm::with_symbol("name");
-    let plugin_id_key = Scm::with_symbol("plugin-id");
-    let is_instrument_key = Scm::with_symbol("instrument?");
-    let classes_key = Scm::with_symbol("classes");
-    let lv2_sym = Scm::with_symbol("lv2");
-    Scm::with_list(STATE.world.iter_plugins().map(move |p| {
-        Scm::EOL
-            .acons(is_instrument_key, p.is_instrument())
-            .acons(name_key, p.name().as_str())
-            .acons(plugin_id_key, Scm::new(p.uri()).cons(lv2_sym))
-            .acons(classes_key, Scm::with_list(p.classes().map(|c| c.to_scm())))
+    let name_key = Scm::new_symbol("name");
+    let plugin_id_key = Scm::new_symbol("plugin-id");
+    let is_instrument_key = Scm::new_symbol("instrument?");
+    let classes_key = Scm::new_symbol("classes");
+    let lv2_sym = Scm::new_symbol("lv2");
+    Scm::with_reversed_list(STATE.world.iter_plugins().map(move |p| {
+        Scm::with_alist(
+            [
+                (is_instrument_key, Scm::new_bool(p.is_instrument())),
+                (name_key, Scm::new_string(p.name().as_str())),
+                (
+                    plugin_id_key,
+                    Scm::new_pair(lv2_sym, Scm::new_string(&p.uri())),
+                ),
+                (
+                    classes_key,
+                    Scm::with_reversed_list(p.classes().map(|c| Scm::new_string(c))),
+                ),
+            ]
+            .into_iter(),
+        )
     }))
 }
 
 unsafe fn scm_to_plugin_instance(state: &State, plugin_id: Scm) -> PluginInstance {
-    let error_key = Scm::with_symbol("instantiate-plugin-error");
+    let error_key = Scm::new_symbol("instantiate-plugin-error");
     let subr = CStr::from_bytes_with_nul(b"make-plugin-instance!\0").unwrap();
-    let plugin_ns = String::from_scm(plugin_id.car().symbol_to_str().to_scm());
-    let plugin_uri = String::from_scm(plugin_id.cdr());
+    let plugin_ns = plugin_id.car().to_symbol();
+    let plugin_uri = plugin_id.cdr().to_string();
     if plugin_ns != "lv2" {
-        flashkick::scm_error(
+        scm_error(
             error_key,
             subr,
             CStr::from_bytes_with_nul(b"Only type lv2 is supported but got ~S.\0").unwrap(),
-            Scm::with_list(std::iter::once(plugin_id.list_ref(0))),
+            Scm::with_reversed_list(std::iter::once(plugin_id.car())),
             Scm::FALSE,
         );
     }
     let plugin = match state.world.plugin_by_uri(&plugin_uri) {
         Some(p) => p,
         None => {
-            flashkick::scm_error(
+            scm_error(
                 error_key,
                 subr,
                 CStr::from_bytes_with_nul(b"lv2 plugin with URI ~s not found.\0").unwrap(),
-                Scm::with_list(std::iter::once(plugin_id.list_ref(1))),
+                Scm::with_reversed_list(std::iter::once(plugin_id.cdr())),
                 Scm::FALSE,
             );
         }
@@ -227,11 +241,11 @@ unsafe fn scm_to_plugin_instance(state: &State, plugin_id: Scm) -> PluginInstanc
             instance,
         },
         Err(err) => {
-            flashkick::scm_error(
+            scm_error(
                 Scm::EOL,
                 subr,
                 CStr::from_bytes_with_nul(b"Failed to instantiate plugin ~S.\0").unwrap(),
-                Scm::with_list(std::iter::once(Scm::new(err.to_string()))),
+                Scm::with_reversed_list(std::iter::once(Scm::new_string(&err.to_string()))),
                 Scm::FALSE,
             );
         }
@@ -240,8 +254,9 @@ unsafe fn scm_to_plugin_instance(state: &State, plugin_id: Scm) -> PluginInstanc
 
 unsafe extern "C" fn make_plugin_instance(track_id: Scm, plugin_id: Scm) -> Scm {
     let state = &*STATE;
-    let track_id = u32::from_scm(track_id);
+    let track_id = track_id.to_u32();
     let plugin_instance = scm_to_plugin_instance(state, plugin_id);
+    let plugin_instance_id = plugin_instance.instance_id;
     let did_add = STATE
         .executor
         .execute(
@@ -254,7 +269,11 @@ unsafe extern "C" fn make_plugin_instance(track_id: Scm, plugin_id: Scm) -> Scm 
             },
         )
         .unwrap();
-    did_add.to_scm()
+    if did_add {
+        Scm::new_u32(plugin_instance_id)
+    } else {
+        Scm::FALSE
+    }
 }
 
 unsafe fn track_id_for_plugin_instance(state: &State, plugin_instance_id: u32) -> u32 {
@@ -272,22 +291,22 @@ unsafe fn track_id_for_plugin_instance(state: &State, plugin_instance_id: u32) -
         })
         .unwrap()
         .unwrap_or_else(|| {
-            let error_key = Scm::with_symbol("not-found");
+            let error_key = Scm::new_symbol("not-found");
             let subr = CStr::from_bytes_with_nul(b"track-id-for-plugin-instance\0").unwrap();
-            flashkick::scm_error(
+            scm_error(
                 error_key,
                 subr,
                 CStr::from_bytes_with_nul(b"Plugin instance ~S not found.\0").unwrap(),
-                Scm::with_list(std::iter::once(Scm::new(plugin_instance_id))),
+                Scm::with_reversed_list(std::iter::once(Scm::new_u32(plugin_instance_id))),
                 Scm::FALSE,
             );
         })
 }
 
 unsafe extern "C" fn plugin_instance(plugin_instance_id: Scm) -> Scm {
-    let lv2_sym = Scm::with_symbol("lv2");
+    let lv2_sym = Scm::new_symbol("lv2");
     let state = &*STATE;
-    let plugin_instance_id = u32::from_scm(plugin_instance_id);
+    let plugin_instance_id = plugin_instance_id.to_u32();
     let track_id = track_id_for_plugin_instance(state, plugin_instance_id);
     struct PluginInstanceInfo {
         track_id: u32,
@@ -316,33 +335,40 @@ unsafe extern "C" fn plugin_instance(plugin_instance_id: Scm) -> Scm {
         .find(|(_, id)| *id == info.plugin_id)
         .map(|(uri, _)| uri.clone())
         .unwrap();
-    Scm::EOL
-        .acons(Scm::with_symbol("track-id"), Scm::new(info.track_id))
-        .acons(Scm::with_symbol("plugin-id"), Scm::new(uri).cons(lv2_sym))
-        .acons(
-            Scm::with_symbol("plugin-instance"),
-            Scm::new(info.plugin_instance_id),
-        )
+    Scm::with_alist(
+        [
+            (Scm::new_symbol("track-id"), Scm::new_u32(info.track_id)),
+            (
+                Scm::new_symbol("plugin-id"),
+                Scm::new_pair(lv2_sym, Scm::new_string(&uri)),
+            ),
+            (
+                Scm::new_symbol("plugin-instance"),
+                Scm::new_u32(info.plugin_instance_id),
+            ),
+        ]
+        .into_iter(),
+    )
 }
 
 unsafe extern "C" fn make_track(rest: Scm) -> Scm {
-    let enabled_keyword = Scm::with_keyword("enabled");
-    let volume_keyword = Scm::with_keyword("volume");
-    let plugins_keyword = Scm::with_keyword("plugin-ids");
+    let enabled_keyword = Scm::new_keyword("enabled");
+    let volume_keyword = Scm::new_keyword("volume");
+    let plugins_keyword = Scm::new_keyword("plugin-ids");
     let mut enabled = Scm::TRUE;
-    let mut volume = Scm::new(0.5f32);
+    let mut volume = Scm::new_f64(0.5f64);
     let mut plugins = Scm::EOL;
-    flashkick::scm_c_bind_keyword_arguments(
+    flashkick::ffi::scm_c_bind_keyword_arguments(
         CStr::from_bytes_with_nul(b"make-track\0").unwrap().as_ptr(),
-        rest.raw(),
+        rest.0,
         0,
-        enabled_keyword.raw(),
+        enabled_keyword.0,
         &mut enabled,
-        volume_keyword.raw(),
+        volume_keyword.0,
         &mut volume,
         plugins_keyword,
         &mut plugins,
-        Scm::UNDEFINED.raw(),
+        Scm::EOL.0,
     );
     let state = &*STATE;
     let id = state
@@ -352,15 +378,11 @@ unsafe extern "C" fn make_track(rest: Scm) -> Scm {
         id,
         plugin_instances: {
             let mut ret = Vec::with_capacity(Bats::PLUGIN_INSTANCE_CAPACITY);
-            ret.extend(
-                plugins
-                    .iter_list()
-                    .map(|p| scm_to_plugin_instance(state, p)),
-            );
+            ret.extend(plugins.iter().map(|p| scm_to_plugin_instance(state, p)));
             ret
         },
-        enabled: bool::from_scm(enabled),
-        volume: f32::from_scm(volume),
+        enabled: enabled.to_bool(),
+        volume: volume.to_f64() as f32,
     };
     STATE
         .executor
@@ -368,11 +390,11 @@ unsafe extern "C" fn make_track(rest: Scm) -> Scm {
             s.tracks.push(track);
         })
         .unwrap();
-    Scm::new(id)
+    Scm::new_u32(id)
 }
 
 unsafe extern "C" fn delete_track(id: Scm) -> Scm {
-    let id = u32::from_scm(id);
+    let id = id.to_u32();
     let maybe_track = STATE
         .executor
         .execute(move |s| -> Option<Track> {
@@ -380,12 +402,12 @@ unsafe extern "C" fn delete_track(id: Scm) -> Scm {
             Some(s.tracks.remove(idx))
         })
         .unwrap();
-    Scm::new(maybe_track.is_some())
+    Scm::new_bool(maybe_track.is_some())
 }
 
 unsafe extern "C" fn delete_plugin_instance(plugin_instance_id: Scm) -> Scm {
     let state = &*STATE;
-    let plugin_instance_id = u32::from_scm(plugin_instance_id);
+    let plugin_instance_id = plugin_instance_id.to_u32();
     let track_id = track_id_for_plugin_instance(state, plugin_instance_id);
     let _ = state.executor.execute(move |s| -> PluginInstance {
         let track = s.tracks.iter_mut().find(|t| t.id == track_id).unwrap();
@@ -420,18 +442,58 @@ unsafe extern "C" fn tracks() -> Scm {
             tracks
         })
         .unwrap();
-    let track_id_key = Scm::with_symbol("track-id");
-    let volume_key = Scm::with_symbol("volume");
-    let enabled_key = Scm::with_symbol("enabled?");
-    let plugin_instance_ids_key = Scm::with_symbol("plugin-instance-ids");
-    Scm::with_list(tracks.into_iter().map(|t| {
-        Scm::EOL
-            .acons(
-                plugin_instance_ids_key,
-                Scm::with_list(t.plugin_instance_ids.iter().map(|id| Scm::new(*id))),
-            )
-            .acons(volume_key, t.volume)
-            .acons(enabled_key, t.enabled)
-            .acons(track_id_key, t.id)
+    let track_id_key = Scm::new_symbol("track-id");
+    let volume_key = Scm::new_symbol("volume");
+    let enabled_key = Scm::new_symbol("enabled?");
+    let plugin_instance_ids_key = Scm::new_symbol("plugin-instance-ids");
+    Scm::with_reversed_list(tracks.into_iter().map(|t| {
+        Scm::with_alist(
+            [
+                (
+                    plugin_instance_ids_key,
+                    Scm::with_reversed_list(
+                        t.plugin_instance_ids
+                            .iter()
+                            .rev()
+                            .map(|id| Scm::new_u32(*id)),
+                    ),
+                ),
+                (volume_key, Scm::new_f64(t.volume as f64)),
+                (enabled_key, Scm::new_bool(t.enabled)),
+                (track_id_key, Scm::new_u32(t.id)),
+            ]
+            .into_iter(),
+        )
     }))
+}
+
+/// Define a subroutine.
+///
+/// `name` - The name of the subroutine.
+/// `req`  - The number of required arguments.
+/// `opt`  - The number of optional arguments.
+/// `rst`  - The number of rest arguments.
+/// `fcn`  - The function implementation. The function must be of type
+///          `extern "C"` or `unsafe extern "C"`. It must take the
+///          appropriate amount of `Scm` as arguments and return a
+///          single `Scm` object.
+///
+/// # Safety
+/// Undefined behavior if `fcn` does not have the right signature.
+pub unsafe fn define_subr(
+    name: &CStr,
+    req: usize,
+    opt: usize,
+    rst: usize,
+    fcn: flashkick::ffi::scm_t_subr,
+) {
+    flashkick::ffi::scm_c_define_gsubr(name.as_ptr(), req as _, opt as _, rst as _, fcn);
+}
+
+/// Raises a Scheme error. This is similar to a Rust panic.
+///
+/// # Safety
+/// Uses unsafe functions.
+pub unsafe fn scm_error(k: Scm, subr: &CStr, message: &CStr, args: Scm, rest: Scm) -> ! {
+    flashkick::ffi::scm_error(k.0, subr.as_ptr(), message.as_ptr(), args.0, rest.0)
 }
