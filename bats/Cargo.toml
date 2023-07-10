@@ -3,19 +3,17 @@ name = "bats"
 version = "0.1.0"
 edition = "2021"
 
-[[bin]]
-name = "bats"
-
-[lib]
-crate-type = ["rlib", "cdylib"]
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 crossbeam-channel = "0.5"
 env_logger = "0.10"
-flashkick = { path = "../flashkick" }
+hyper = "0.14"
 jack = "0.11"
+jsonrpsee-server = "0.18"
 lazy_static = "1.4"
 livi = "0.7"
 log = "0.4"
+tokio = {version = "1.29", features = ["full"]}
+tower = {version = "0.4", features = ["full"]}
+tower-http = {version = "0.4", features=["full"]}
