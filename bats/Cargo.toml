@@ -14,6 +14,8 @@ jsonrpsee-server = "0.18"
 lazy_static = "1.4"
 livi = "0.7"
 log = "0.4"
+serde = {version = "1.0", features = ["derive"]}
+serde_json = {version = "1.0"}
 tokio = {version = "1.29", features = ["full"]}
 tower = {version = "0.4", features = ["full"]}
 tower-http = {version = "0.4", features=["full"]}

@@ -1,7 +1,13 @@
 use hyper::Method;
 use jsonrpsee_server::{AllowHosts, RpcModule, ServerBuilder, ServerHandle};
-use std::net::SocketAddr;
+use std::{net::SocketAddr, sync::Arc};
 use tower_http::cors::{Any, CorsLayer};
+
+mod bats;
+mod jack_adapter;
+mod remote_executor;
+mod state;
+mod track;
 
 #[tokio::main]
 async fn main() {
@@ -10,11 +16,12 @@ async fn main() {
         .try_init()
         .unwrap();
     let addr = "127.0.0.1:8000".parse::<SocketAddr>().unwrap();
-    let _server_handle = run_server(addr).await;
+    let state = state::State::new().unwrap();
+    let _server_handle = run_server(addr, state).await;
     std::thread::park();
 }
 
-async fn run_server(addr: SocketAddr) -> ServerHandle {
+async fn run_server(addr: SocketAddr, state: state::State) -> ServerHandle {
     // Add a CORS middleware for handling HTTP requests.
     // This middleware does affect the response, including appropriate
     // headers to satisfy CORS. Because any origins are allowed, the
@@ -38,13 +45,36 @@ async fn run_server(addr: SocketAddr) -> ServerHandle {
         .await
         .unwrap();
 
+    let state = Arc::new(state);
     let mut module = RpcModule::new(());
+    let state_settings = state.clone();
     module
-        .register_method("say_hello", |_, _| {
-            println!("say_hello method called!");
-            "Hello there!!"
+        .register_method("settings", move |_params, _ctx| {
+            state_settings.clone().settings().to_json()
+        })
+        .unwrap();
+    let state_plugins = state.clone();
+    module
+        .register_method("plugins", move |_params, _ctx| {
+            state_plugins.clone().plugins().to_json()
+        })
+        .unwrap();
+    let state_tracks = state.clone();
+    module
+        .register_method("tracks", move |_params, _ctx| {
+            state_tracks.clone().tracks().to_json()
         })
         .unwrap();
 
     server.start(module).unwrap()
+}
+
+trait JsonUtil {
+    fn to_json(self) -> serde_json::Value;
+}
+
+impl<T: serde::Serialize> JsonUtil for T {
+    fn to_json(self) -> serde_json::Value {
+        serde_json::to_value(self).unwrap()
+    }
 }
