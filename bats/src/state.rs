@@ -72,12 +72,22 @@ impl State {
     pub fn plugins(&self) -> Vec<Plugin> {
         self.world
             .iter_plugins()
-            .map(|p| Plugin {
+            .map(|plugin| Plugin {
                 id: PluginId {
                     namespace: "lv2".to_string(),
-                    id: p.uri(),
+                    id: plugin.uri(),
                 },
-                name: p.name(),
+                name: plugin.name(),
+                params: plugin
+                    .ports_with_type(livi::PortType::ControlInput)
+                    .map(|port| PluginParam {
+                        name: port.name,
+                        id: port.index.0 as u32,
+                        default_value: port.default_value,
+                        min_value: port.min_value,
+                        max_value: port.max_value,
+                    })
+                    .collect(),
             })
             .collect()
     }
@@ -261,7 +271,7 @@ impl State {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MakePluginInstanceParams {
     track_id: u32,
     plugin_id: PluginId,
@@ -294,9 +304,19 @@ pub struct PluginInstance {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
+pub struct PluginParam {
+    name: String,
+    id: u32,
+    default_value: f32,
+    min_value: Option<f32>,
+    max_value: Option<f32>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Plugin {
     id: PluginId,
     name: String,
+    params: Vec<PluginParam>,
 }
 
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
