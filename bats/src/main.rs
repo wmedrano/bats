@@ -1,6 +1,6 @@
 use hyper::Method;
-use jsonrpsee_server::{AllowHosts, RpcModule, ServerBuilder, ServerHandle};
-use std::{net::SocketAddr, sync::Arc};
+use jsonrpsee_server::{types::ErrorObject, AllowHosts, RpcModule, ServerBuilder, ServerHandle};
+use std::net::SocketAddr;
 use tower_http::cors::{Any, CorsLayer};
 
 mod bats;
@@ -45,36 +45,52 @@ async fn run_server(addr: SocketAddr, state: state::State) -> ServerHandle {
         .await
         .unwrap();
 
-    let state = Arc::new(state);
-    let mut module = RpcModule::new(());
-    let state_settings = state.clone();
+    let mut module = RpcModule::new(state);
     module
-        .register_method("settings", move |_params, _ctx| {
-            state_settings.clone().settings().to_json()
+        .register_method("settings", move |_params, state| Some(state.settings()))
+        .unwrap();
+    module
+        .register_method("plugins", move |_params, state| state.plugins())
+        .unwrap();
+    module
+        .register_method("make_track", move |_params, state| Some(state.make_track()))
+        .unwrap();
+    module
+        .register_method("delete_track", move |params, state| {
+            state
+                .delete_track(params.parse()?)
+                .map(Some)
+                .map_err(error_to_obj)
         })
         .unwrap();
-    let state_plugins = state.clone();
     module
-        .register_method("plugins", move |_params, _ctx| {
-            state_plugins.clone().plugins().to_json()
+        .register_method("tracks", move |_params, state| state.tracks())
+        .unwrap();
+    module
+        .register_method("make_plugin_instance", move |params, state| {
+            state
+                .make_plugin_instance(params.parse()?)
+                .map(Some)
+                .map_err(error_to_obj)
         })
         .unwrap();
-    let state_tracks = state.clone();
     module
-        .register_method("tracks", move |_params, _ctx| {
-            state_tracks.clone().tracks().to_json()
+        .register_method("delete_plugin_instance", move |params, state| {
+            state
+                .delete_plugin_instance(params.parse()?)
+                .map(Some)
+                .map_err(error_to_obj)
+        })
+        .unwrap();
+    module
+        .register_method("plugin_instances", move |_params, state| {
+            state.plugin_instances()
         })
         .unwrap();
 
     server.start(module).unwrap()
 }
 
-trait JsonUtil {
-    fn to_json(self) -> serde_json::Value;
-}
-
-impl<T: serde::Serialize> JsonUtil for T {
-    fn to_json(self) -> serde_json::Value {
-        serde_json::to_value(self).unwrap()
-    }
+fn error_to_obj<E: std::fmt::Display>(e: E) -> ErrorObject<'static> {
+    ErrorObject::owned(500, e.to_string(), Some(()))
 }
