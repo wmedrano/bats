@@ -6,19 +6,19 @@ pub struct RawFn {
     pub f: Box<dyn Send + FnOnce(&mut Bats)>,
 }
 
-/// A struct that can execute code on an object that is running on a different thread.
-pub struct RemoteExecutor {
+/// A struct that can be used to communicate within a process.
+pub struct Ipc {
     /// The channel to send functions to execute on.
     sender: crossbeam_channel::Sender<RawFn>,
 }
 
-impl RemoteExecutor {
-    pub fn new(sender: crossbeam_channel::Sender<RawFn>) -> RemoteExecutor {
-        RemoteExecutor { sender }
+impl Ipc {
+    pub fn new(sender: crossbeam_channel::Sender<RawFn>) -> Ipc {
+        Ipc { sender }
     }
 
     /// Call for `f` to be executed. This will send `f` to be executed but will not block.
-    fn execute_async(&self, f: impl 'static + Send + FnOnce(&mut Bats)) {
+    fn run_fn_async(&self, f: impl 'static + Send + FnOnce(&mut Bats)) {
         let raw_fn = RawFn {
             f: Box::new(move |s| {
                 f(s);
@@ -29,12 +29,12 @@ impl RemoteExecutor {
 
     /// Execute `f` and return its value once it has executed. This function will block until the
     /// remote object has received and executed `f`.
-    pub fn execute<T: 'static + Send>(
+    pub fn run_fn<T: 'static + Send>(
         &self,
         f: impl 'static + Send + FnOnce(&mut Bats) -> T,
     ) -> Result<T, crossbeam_channel::RecvError> {
         let (tx, rx) = crossbeam_channel::bounded(1);
-        self.execute_async(move |s| {
+        self.run_fn_async(move |s| {
             let ret = f(s);
             tx.send(ret).unwrap();
         });

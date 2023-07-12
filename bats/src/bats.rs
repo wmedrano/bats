@@ -2,7 +2,7 @@ use std::borrow::{Borrow, BorrowMut};
 
 use log::error;
 
-use crate::{remote_executor::RemoteExecutor, track::Track};
+use crate::{ipc::Ipc, track::Track};
 
 /// Handles audio processing.
 pub struct Bats {
@@ -15,7 +15,7 @@ pub struct Bats {
     /// The `urid` for the LV2 midi atom.
     midi_urid: u32,
     /// A channel to receive functions to execute.
-    remote_fns: crossbeam_channel::Receiver<crate::remote_executor::RawFn>,
+    remote_fns: crossbeam_channel::Receiver<crate::ipc::RawFn>,
     /// A buffer that can be used to store temporary data.
     buffer: Vec<f32>,
 }
@@ -42,10 +42,10 @@ impl Bats {
     /// Reset the remote executor and return it.
     ///
     /// Any previously set executor will no longer be responsive.
-    pub fn reset_remote_executor(&mut self, queue_size: usize) -> RemoteExecutor {
+    pub fn reset_remote_executor(&mut self, queue_size: usize) -> Ipc {
         let (tx, rx) = crossbeam_channel::bounded(queue_size);
         self.remote_fns = rx;
-        RemoteExecutor::new(tx)
+        Ipc::new(tx)
     }
 
     /// Process data and write the results to `audio_out`.

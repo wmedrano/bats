@@ -8,11 +8,11 @@ use jack::AsyncClient;
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 
-use crate::{bats::Bats, jack_adapter::JackProcessHandler, remote_executor::RemoteExecutor};
+use crate::{bats::Bats, ipc::Ipc, jack_adapter::JackProcessHandler};
 
 pub struct State {
     client: AsyncClient<(), JackProcessHandler>,
-    executor: RemoteExecutor,
+    executor: Ipc,
     world: livi::World,
     features: Arc<livi::Features>,
     urid_to_internal_id: HashMap<String, u32>,
@@ -95,7 +95,7 @@ impl State {
     pub fn make_track(&self) -> u32 {
         let id = self.claim_id();
         self.executor
-            .execute(move |b| {
+            .run_fn(move |b| {
                 b.tracks.push(crate::track::Track {
                     id,
                     plugin_instances: Vec::new(),
@@ -111,7 +111,7 @@ impl State {
         let id = id.id;
         let maybe_track = self
             .executor
-            .execute(move |b| {
+            .run_fn(move |b| {
                 let idx = b.tracks.iter().position(|t| t.id == id)?;
                 Some(b.tracks.remove(idx))
             })
@@ -126,7 +126,7 @@ impl State {
         let mut tracks = Vec::with_capacity(Bats::TRACKS_CAPACITY);
         let mut tracks: Vec<Track> = self
             .executor
-            .execute(move |b| {
+            .run_fn(move |b| {
                 tracks.extend(b.tracks.iter().map(|t| Track {
                     id: t.id,
                     plugin_instances: Vec::new(),
@@ -176,9 +176,21 @@ impl State {
             },
             Err(err) => return Err(anyhow!("failed to instantiate {:?}: {}", plugin_id, err)),
         };
+        let param_values: Vec<(u32, f32)> = plugin
+            .ports_with_type(livi::PortType::ControlInput)
+            .map(|port| -> (u32, f32) {
+                (
+                    port.index.0 as u32,
+                    plugin_instance
+                        .instance
+                        .control_input(port.index)
+                        .unwrap_or_default(),
+                )
+            })
+            .collect();
         let failed_plugin_instance = self
             .executor
-            .execute(move |b| {
+            .run_fn(move |b| {
                 let track = match b.tracks.iter_mut().find(|t| t.id == track_id) {
                     Some(t) => t,
                     None => return Some(plugin_instance),
@@ -194,6 +206,7 @@ impl State {
             id: plugin_instance_id,
             plugin_id,
             track_id,
+            param_values,
         })
     }
 
@@ -201,7 +214,7 @@ impl State {
         let id = id.id;
         let maybe_plugin_instance = self
             .executor
-            .execute(move |b| {
+            .run_fn(move |b| {
                 for track in b.tracks.iter_mut() {
                     if let Some(idx) = track
                         .plugin_instances
@@ -228,7 +241,7 @@ impl State {
         }
         let plugin_instances_tmp = self
             .executor
-            .execute(move |b| {
+            .run_fn(move |b| {
                 plugin_instances.extend(
                     b.tracks
                         .iter()
@@ -238,6 +251,7 @@ impl State {
                                 id: pi.instance_id,
                                 plugin_id: PluginId::default(),
                                 track_id,
+                                param_values: Vec::new(),
                             },
                             internal_plugin_id: pi.plugin_id,
                         }),
@@ -259,6 +273,8 @@ impl State {
                         .map(|(k, _)| k.clone())
                         .unwrap(),
                 },
+                // TODO: Populate this.
+                param_values: Vec::new(),
             })
             .collect()
     }
@@ -301,6 +317,7 @@ pub struct PluginInstance {
     id: u32,
     plugin_id: PluginId,
     track_id: u32,
+    param_values: Vec<(u32, f32)>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]

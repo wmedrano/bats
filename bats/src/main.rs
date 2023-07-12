@@ -4,8 +4,8 @@ use std::net::SocketAddr;
 use tower_http::cors::{Any, CorsLayer};
 
 mod bats;
+mod ipc;
 mod jack_adapter;
-mod remote_executor;
 mod state;
 mod track;
 
