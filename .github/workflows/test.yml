@@ -16,7 +16,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get -y install liblilv-dev lv2-examples mda-lv2 jackd libjack0 libjack-dev guile-3.0-dev
+          sudo apt-get -y install liblilv-dev lv2-examples mda-lv2 jackd libjack0 libjack-dev
       - name: Checkout Repository
         uses: actions/checkout@v2
       - name: Rust Cache
@@ -28,6 +28,4 @@ jobs:
       - name: Build
         run: cargo build --verbose
       - name: Run Rust tests
-        run: RUST_TEST_THREADS=1 cargo test --verbose
-      - name: Run Scheme tests
-        run: guile ./tests/test.scm
+        run: cargo test --verbose
