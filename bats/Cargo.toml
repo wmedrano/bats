@@ -12,7 +12,6 @@ env_logger = "0.10"
 hyper = "0.14"
 jack = "0.11"
 jsonrpsee-server = "0.18"
-lazy_static = "1.4"
 livi = "0.7"
 log = "0.4"
 serde = {version = "1.0", features = ["derive"]}
