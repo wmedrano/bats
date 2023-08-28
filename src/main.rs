@@ -27,7 +27,7 @@ fn make_client() -> Result<jack::AsyncClient<(), JackAdapter>> {
 
 #[cfg(test)]
 #[test]
-fn test_make_client_is_ok() {
+fn test_main_make_client_is_ok() {
     let client = make_client().unwrap();
     std::thread::sleep(std::time::Duration::from_secs(1));
     client.deactivate().unwrap();

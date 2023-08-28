@@ -19,7 +19,7 @@ jobs:
             - name: Run JACK server
               run: jackd -r -ddummy -r44100 -p1024 &
             - name: Checkout Repository
-              uses: actions/checkout@v2
+              uses: actions/checkout@v3
             - name: Lint
               run: cargo clippy | echo Lint Failed
             - name: Build
