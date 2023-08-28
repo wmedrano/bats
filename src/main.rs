@@ -18,7 +18,7 @@ fn main() {
 
 /// Make a new client or return of error.
 fn make_client() -> Result<jack::AsyncClient<(), JackAdapter>> {
-    let (client, status) = jack::Client::new("bats", jack::ClientOptions::empty())?;
+    let (client, status) = jack::Client::new("bats", jack::ClientOptions::NO_START_SERVER)?;
     info!("Started client {} with status {:?}.", client.name(), status);
     let processor = JackAdapter::new(&client)?;
     let active_client = client.activate_async((), processor)?;

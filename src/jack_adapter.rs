@@ -44,8 +44,11 @@ mod tests {
 
     #[test]
     fn test_processor_new_is_ok() {
-        let (c, _) =
-            jack::Client::new("test_processor_new_is_ok", jack::ClientOptions::empty()).unwrap();
+        let (c, _) = jack::Client::new(
+            "test_processor_new_is_ok",
+            jack::ClientOptions::NO_START_SERVER,
+        )
+        .unwrap();
         JackAdapter::new(&c).unwrap();
     }
 }
