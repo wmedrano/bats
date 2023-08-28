@@ -1,7 +1,8 @@
 use anyhow::Result;
+use jack_adapter::JackAdapter;
 use log::*;
-use processor::Processor;
 
+mod jack_adapter;
 mod processor;
 
 fn main() {
@@ -16,10 +17,10 @@ fn main() {
 }
 
 /// Make a new client or return of error.
-fn make_client() -> Result<jack::AsyncClient<(), Processor>> {
-    let (client, status) = jack::Client::new("bats", jack::ClientOptions::empty())?;
+fn make_client() -> Result<jack::AsyncClient<(), JackAdapter>> {
+    let (client, status) = jack::Client::new("bats", jack::ClientOptions::NO_START_SERVER)?;
     info!("Started client {} with status {:?}.", client.name(), status);
-    let processor = Processor::new(&client)?;
+    let processor = JackAdapter::new(&client)?;
     let active_client = client.activate_async((), processor)?;
     Ok(active_client)
 }

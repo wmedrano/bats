@@ -13,7 +13,11 @@ jobs:
             - name: Install Dependencies
               run: |
                sudo apt update
-               sudo apt install libjack-dev
+               # Most users will be on JACK spa (aka pipewire), but
+               # pipewire is harder to set up on GitHub actions.
+               sudo apt install jackd libjack-dev libjack0
+            - name: Run JACK server
+              run: jackd -r -ddummy -r44100 -p1024 &
             - name: Checkout Repository
               uses: actions/checkout@v2
             - name: Lint
