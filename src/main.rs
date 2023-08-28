@@ -21,6 +21,9 @@ fn make_client() -> Result<jack::AsyncClient<(), JackAdapter>> {
     let (client, status) = jack::Client::new("bats", jack::ClientOptions::NO_START_SERVER)?;
     info!("Started client {} with status {:?}.", client.name(), status);
     let processor = JackAdapter::new(&client)?;
+    if let Err(err) = processor.connect_ports(&client) {
+        warn!("{:?}", err);
+    }
     let active_client = client.activate_async((), processor)?;
     Ok(active_client)
 }

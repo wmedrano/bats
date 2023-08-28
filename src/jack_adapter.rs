@@ -1,4 +1,6 @@
 use anyhow::Result;
+use jack::PortSpec;
+use log::*;
 
 use crate::processor::Processor;
 
@@ -17,12 +19,42 @@ pub struct JackAdapter {
 impl JackAdapter {
     /// Create a new `JackAdapter`.
     pub fn new(client: &jack::Client) -> Result<JackAdapter> {
+        let processor = Processor::default();
+        let midi_in = client.register_port("midi_in", jack::MidiIn)?;
+        let out_left = client.register_port("out_left", jack::AudioOut)?;
+        let out_right = client.register_port("out_right", jack::AudioOut)?;
+
         Ok(JackAdapter {
-            processor: Processor::default(),
-            midi_in: client.register_port("midi_in", jack::MidiIn)?,
-            out_left: client.register_port("out_left", jack::AudioOut)?,
-            out_right: client.register_port("out_right", jack::AudioOut)?,
+            processor,
+            midi_in,
+            out_left,
+            out_right,
         })
+    }
+
+    /// Connect the ports in `self` to physical ports.
+    pub fn connect_ports(&self, client: &jack::Client) -> Result<()> {
+        let self_audio_ports = [self.out_left.name()?, self.out_right.name()?];
+        let physical_audio_out_ports = client.ports(
+            None,
+            Some(jack::AudioIn.jack_port_type()),
+            jack::PortFlags::IS_PHYSICAL | jack::PortFlags::IS_INPUT,
+        );
+        for (src, dst) in self_audio_ports.into_iter().zip(physical_audio_out_ports) {
+            info!("Connecting audio port {} to {}.", src, dst);
+            client.connect_ports_by_name(&src, &dst)?;
+        }
+        let physical_midi_in_ports = client.ports(
+            None,
+            Some(jack::MidiOut.jack_port_type()),
+            jack::PortFlags::IS_PHYSICAL | jack::PortFlags::IS_OUTPUT,
+        );
+        let src = self.midi_in.name()?;
+        for dst in physical_midi_in_ports {
+            info!("Connecting midi port {} to {}.", src, dst);
+            client.connect_ports_by_name(&src, &dst)?;
+        }
+        Ok(())
     }
 }
 

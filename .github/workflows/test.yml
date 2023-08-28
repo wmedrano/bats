@@ -21,7 +21,7 @@ jobs:
             - name: Checkout Repository
               uses: actions/checkout@v3
             - name: Lint
-              run: cargo clippy | echo Lint Failed
+              run: cargo clippy || echo -e "\e[31mcargo clippy failed\f[0m"
             - name: Build
               run: cargo build --verbose
             - name: Test
