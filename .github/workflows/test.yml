@@ -17,7 +17,7 @@ jobs:
                # pipewire is harder to set up on GitHub actions.
                sudo apt install jackd libjack-dev libjack0
             - name: Run JACK server
-              run: jackd -ddummy &
+              run: jackd -r -ddummy -r44100 -p1024 &
             - name: Checkout Repository
               uses: actions/checkout@v2
             - name: Lint
