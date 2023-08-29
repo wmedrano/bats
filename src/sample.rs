@@ -12,6 +12,14 @@ pub struct Sample {
 }
 
 impl Sample {
+    /// Create a new sample with the given data for both the left and right channels.
+    pub fn with_mono_data(data: &[f32]) -> Sample {
+        match Sample::with_stereo_data(data, data) {
+            Ok(s) => s,
+            Err(err) => unreachable!("{}", err),
+        }
+    }
+
     /// Create a new sample with the given left and right channel
     /// data. Both the left and right channels must have the same
     /// amount of samples.
@@ -107,9 +115,7 @@ mod tests {
 
     #[test]
     fn test_sample_reset_sets_iterator_to_start() {
-        let mut sample_iter = Sample::with_stereo_data(&[1.0, 2.0], &[1.0, 2.0])
-            .unwrap()
-            .iter_samples();
+        let mut sample_iter = Sample::with_mono_data(&[1.0, 2.0]).iter_samples();
 
         assert_eq!(sample_iter.next(), Some((1.0, 1.0)));
         assert_eq!(sample_iter.next(), Some((2.0, 2.0)));
@@ -121,9 +127,7 @@ mod tests {
 
     #[test]
     fn test_sample_end_ends_iteration() {
-        let mut sample_iter = Sample::with_stereo_data(&[1.0, 2.0], &[1.0, 2.0])
-            .unwrap()
-            .iter_samples();
+        let mut sample_iter = Sample::with_mono_data(&[1.0, 2.0]).iter_samples();
         sample_iter.end();
         assert_eq!(sample_iter.next(), None);
     }

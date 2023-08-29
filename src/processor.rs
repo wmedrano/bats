@@ -3,20 +3,29 @@ use crate::sample::{Sample, SampleIter};
 
 #[derive(Debug)]
 pub struct Processor {
+    /// An iterator over the current sample.
     tick_sample: SampleIter,
 }
 
+impl Processor {
+    /// Set the sample to `sample`.
+    #[cfg(test)]
+    pub fn set_sample(&mut self, sample: Sample) {
+        self.tick_sample = sample.iter_samples();
+        self.tick_sample.end();
+    }
+}
+
 impl Default for Processor {
+    /// Create a default version of `Processor`.
     fn default() -> Processor {
-        let mut tick_sample = Sample::with_stereo_data(&[1.0, -1.0], &[1.0, -1.0])
-            .unwrap()
-            .iter_samples();
-        while tick_sample.next().is_some() {}
+        let tick_sample = Sample::with_mono_data(&[1.0, -1.0]).iter_samples();
         Processor { tick_sample }
     }
 }
 
 impl Processor {
+    /// Perform processing for a single buffer.
     pub fn process<'a>(
         &mut self,
         midi_in: impl Iterator<Item = (u32, &'a [u8])>,
@@ -59,6 +68,7 @@ mod tests {
     #[test]
     fn test_processor_inaction_produces_silence() {
         let mut processor = Processor::default();
+        processor.set_sample(Sample::with_mono_data(&[1.0]));
         let mut left = vec![1.0, 1.0];
         let mut right = vec![-1.0, -1.0];
         processor.process(std::iter::empty(), &mut left, &mut right);
@@ -69,6 +79,7 @@ mod tests {
     #[test]
     fn test_processor_pressing_note_produces_sound_on_same_frame() {
         let mut processor = Processor::default();
+        processor.set_sample(Sample::with_mono_data(&[1.0]));
         let note_on = midi_to_vec(wmidi::MidiMessage::NoteOn(
             wmidi::Channel::Ch1,
             wmidi::Note::C1,
@@ -88,6 +99,7 @@ mod tests {
     #[test]
     fn test_processor_releasing_note_cuts_off_sound() {
         let mut processor = Processor::default();
+        processor.set_sample(Sample::with_mono_data(&[1.0]));
         let note_on = midi_to_vec(wmidi::MidiMessage::NoteOn(
             wmidi::Channel::Ch1,
             wmidi::Note::C1,
