@@ -1,3 +1,4 @@
+//! Hook up bats! to JACK for audio and midi IO.
 use anyhow::Result;
 use jack::PortSpec;
 use log::*;

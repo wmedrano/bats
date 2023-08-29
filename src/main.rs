@@ -1,10 +1,13 @@
+//! Bats! is a sample centered DAW.
 use anyhow::Result;
 use jack_adapter::JackAdapter;
 use log::*;
 
 mod jack_adapter;
 mod processor;
+mod sample;
 
+/// Run the bats! program.
 fn main() {
     env_logger::builder()
         .filter_level(LevelFilter::Info)
