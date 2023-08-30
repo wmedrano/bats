@@ -10,15 +10,6 @@ pub struct Processor {
     tick_sample: SampleIter,
 }
 
-impl Processor {
-    /// Set the sample to `sample`.
-    #[cfg(test)]
-    pub fn set_sample(&mut self, sample: Sample) {
-        self.tick_sample = sample.iter_samples();
-        self.tick_sample.end();
-    }
-}
-
 impl Default for Processor {
     /// Create a default version of `Processor`.
     fn default() -> Processor {
@@ -31,6 +22,28 @@ impl Default for Processor {
 }
 
 impl Processor {
+    /// Set the sample to `sample`.
+    #[cfg(test)]
+    pub fn set_sample(&mut self, sample: Sample) {
+        self.tick_sample = sample.iter_samples();
+        self.tick_sample.end();
+    }
+
+    /// Perform processing and return the audio data to a vector.
+    ///
+    /// Note: Prefer pre-allocating audio buffers and using `process`
+    /// for improved performance.
+    pub fn process_to_vec<'a>(
+        &mut self,
+        frames: usize,
+        midi_in: impl Iterator<Item = (u32, &'a [u8])>,
+    ) -> (Vec<f32>, Vec<f32>) {
+        let mut left = vec![0.0; frames];
+        let mut right = vec![0.0; frames];
+        self.process(midi_in, &mut left, &mut right);
+        (left, right)
+    }
+
     /// Perform processing for a single buffer.
     pub fn process<'a>(
         &mut self,
@@ -75,9 +88,7 @@ mod tests {
     fn test_processor_inaction_produces_silence() {
         let mut processor = Processor::default();
         processor.set_sample(Sample::with_mono_data(&[1.0]));
-        let mut left = vec![1.0, 1.0];
-        let mut right = vec![-1.0, -1.0];
-        processor.process(std::iter::empty(), &mut left, &mut right);
+        let (left, right) = processor.process_to_vec(2, std::iter::empty());
         assert_eq!(left, vec![0.0, 0.0]);
         assert_eq!(right, vec![0.0, 0.0]);
     }
@@ -91,13 +102,7 @@ mod tests {
             wmidi::Note::C1,
             wmidi::U7::from_u8_lossy(100),
         ));
-        let mut left = vec![0.0, 0.0];
-        let mut right = vec![0.0, 0.0];
-        processor.process(
-            std::iter::once((1, note_on.as_slice())),
-            &mut left,
-            &mut right,
-        );
+        let (left, right) = processor.process_to_vec(2, std::iter::once((1, note_on.as_slice())));
         assert_eq!(left, vec![0.0, 1.0]);
         assert_eq!(right, vec![0.0, 1.0]);
     }
@@ -116,12 +121,9 @@ mod tests {
             wmidi::Note::C1,
             wmidi::U7::from_u8_lossy(100),
         ));
-        let mut left = vec![0.0, 0.0];
-        let mut right = vec![0.0, 0.0];
-        processor.process(
+        let (left, right) = processor.process_to_vec(
+            2,
             [(1, note_on.as_slice()), (1, note_off.as_slice())].into_iter(),
-            &mut left,
-            &mut right,
         );
         assert_eq!(left, vec![0.0, 0.0]);
         assert_eq!(right, vec![0.0, 0.0]);
@@ -136,15 +138,9 @@ mod tests {
             wmidi::Note::C1,
             wmidi::U7::from_u8_lossy(100),
         ));
-        let mut left = vec![0.0, 0.0];
-        let mut right = vec![0.0, 0.0];
 
         processor.volume = 0.2;
-        processor.process(
-            std::iter::once((0, note_on.as_slice())),
-            &mut left,
-            &mut right,
-        );
+        let (left, right) = processor.process_to_vec(2, std::iter::once((0, note_on.as_slice())));
         assert_eq!(left, vec![0.2, 0.1]);
         assert_eq!(right, vec![0.2, 0.1]);
     }
