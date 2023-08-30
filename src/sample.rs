@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::{anyhow, Result};
 
 /// Contains an audio sample. This includes both left and right channels.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Sample {
     /// The audio data. The first half of the buffer contains the left
     /// channel and the second contains the right channel.
