@@ -3,6 +3,9 @@ use crate::sample::{Sample, SampleIter};
 
 #[derive(Debug)]
 pub struct Processor {
+    /// The volume output. Essentially a multiplier for the signal.
+    pub volume: f32,
+
     /// An iterator over the current sample.
     tick_sample: SampleIter,
 }
@@ -20,7 +23,10 @@ impl Default for Processor {
     /// Create a default version of `Processor`.
     fn default() -> Processor {
         let tick_sample = Sample::with_mono_data(&[1.0, -1.0]).iter_samples();
-        Processor { tick_sample }
+        Processor {
+            volume: 1.0,
+            tick_sample,
+        }
     }
 }
 
@@ -48,8 +54,8 @@ impl Processor {
                     _ => {}
                 }
             }
-            (*left.next().unwrap(), *right.next().unwrap()) =
-                self.tick_sample.next().unwrap_or((0.0, 0.0));
+            let (a, b) = self.tick_sample.next().unwrap_or((0.0, 0.0));
+            (*left.next().unwrap(), *right.next().unwrap()) = (a * self.volume, b * self.volume)
         }
     }
 }
@@ -119,5 +125,27 @@ mod tests {
         );
         assert_eq!(left, vec![0.0, 0.0]);
         assert_eq!(right, vec![0.0, 0.0]);
+    }
+
+    #[test]
+    fn test_changing_output_volume_scales_final_output() {
+        let mut processor = Processor::default();
+        processor.set_sample(Sample::with_mono_data(&[1.0, 0.5]));
+        let note_on = midi_to_vec(wmidi::MidiMessage::NoteOn(
+            wmidi::Channel::Ch1,
+            wmidi::Note::C1,
+            wmidi::U7::from_u8_lossy(100),
+        ));
+        let mut left = vec![0.0, 0.0];
+        let mut right = vec![0.0, 0.0];
+
+        processor.volume = 0.2;
+        processor.process(
+            std::iter::once((0, note_on.as_slice())),
+            &mut left,
+            &mut right,
+        );
+        assert_eq!(left, vec![0.2, 0.1]);
+        assert_eq!(right, vec![0.2, 0.1]);
     }
 }

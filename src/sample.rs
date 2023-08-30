@@ -95,6 +95,15 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_sample_with_mono_data_produces_same_data_for_both_channels() {
+        let sample = Sample::with_mono_data(&[1.0, 2.0, 4.0, 8.0]);
+        assert_eq!(
+            sample.iter_samples().collect::<Vec<_>>(),
+            vec![(1.0, 1.0), (2.0, 2.0), (4.0, 4.0), (8.0, 8.0)]
+        );
+    }
+
+    #[test]
     fn test_sample_stereo_data_called_with_different_sizes_produces_error() {
         assert!(Sample::with_stereo_data(&[1.0], &[1.0, 2.0]).is_err());
     }
