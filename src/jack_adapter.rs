@@ -20,7 +20,7 @@ pub struct JackAdapter {
 impl JackAdapter {
     /// Create a new `JackAdapter`.
     pub fn new(client: &jack::Client) -> Result<JackAdapter> {
-        let processor = Processor::default();
+        let processor = Processor::new(client.buffer_size() as usize * 2);
         let midi_in = client.register_port("midi_in", jack::MidiIn)?;
         let out_left = client.register_port("out_left", jack::AudioOut)?;
         let out_right = client.register_port("out_right", jack::AudioOut)?;
