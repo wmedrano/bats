@@ -1,5 +1,5 @@
 //! Utilities for a single audio samples.
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
 use anyhow::{anyhow, Result};
 
@@ -34,6 +34,32 @@ impl Sample {
         Ok(Sample {
             buffer: Arc::new(Vec::from_iter(left.iter().chain(right.iter()).copied())),
         })
+    }
+
+    /// Load an audio sample from a wave file.
+    ///
+    /// TODO: Provide sample rate  conversion.
+    pub fn with_wave_file(p: impl AsRef<Path>) -> Result<Sample> {
+        let mut reader = hound::WavReader::open(p)?;
+        let spec = reader.spec();
+        let maybe_data: Result<Vec<_>, _> = match spec.sample_format {
+            hound::SampleFormat::Float => reader.samples::<f32>().collect(),
+            hound::SampleFormat::Int => reader
+                .samples::<i16>()
+                .map(|r| r.map(|i| i as f32 / i16::MAX as f32))
+                .collect(),
+        };
+        let data = maybe_data?;
+        match spec.channels {
+            0 => Err(anyhow!("wave file had 0 channels")),
+            1 => Ok(Sample::with_mono_data(&data)),
+            2 => {
+                let data = deinterleave(&data);
+                let (l, r) = data.split_at(data.len() / 2);
+                Sample::with_stereo_data(l, r)
+            }
+            n => Err(anyhow!("expected 1 or 2 channels or got {}", n)),
+        }
     }
 
     /// Iterate through all the samples in both the left and right
@@ -90,6 +116,18 @@ impl Iterator for SampleIter {
     }
 }
 
+fn deinterleave(data: &[f32]) -> Vec<f32> {
+    let mut ret = vec![0.0; data.len()];
+    for (idx, v) in data.iter().enumerate() {
+        if idx % 2 == 0 {
+            ret[idx / 2] = *v;
+        } else {
+            ret[data.len() / 2 + idx / 2] = *v;
+        }
+    }
+    ret
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -106,6 +144,21 @@ mod tests {
     #[test]
     fn test_sample_stereo_data_called_with_different_sizes_produces_error() {
         assert!(Sample::with_stereo_data(&[1.0], &[1.0, 2.0]).is_err());
+    }
+
+    #[test]
+    fn test_sample_load_with_wave_file_that_does_not_exist_produces_error() {
+        assert!(Sample::with_wave_file("/does/not/exist").is_err());
+    }
+
+    #[test]
+    fn test_sample_load_with_wave_file_loads_sample() {
+        let sample = Sample::with_wave_file("assets/LoFi-drum-loop.wav").unwrap();
+        assert_eq!(sample.iter_samples().count(), 264600);
+        assert_eq!(
+            sample.iter_samples().take(2).collect::<Vec<_>>(),
+            vec![(0.014374218, 0.014374218), (0.016052736, 0.016052736)],
+        );
     }
 
     #[test]

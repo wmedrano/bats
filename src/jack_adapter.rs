@@ -3,7 +3,11 @@ use anyhow::Result;
 use jack::PortSpec;
 use log::*;
 
-use crate::processor::Processor;
+use crate::{
+    plugins::{sampler::OneShotSampler, Plugin},
+    processor::Processor,
+    sample::Sample,
+};
 
 /// `JackAdapter` implements the real-time audio component of bats.
 pub struct JackAdapter {
@@ -20,7 +24,11 @@ pub struct JackAdapter {
 impl JackAdapter {
     /// Create a new `JackAdapter`.
     pub fn new(client: &jack::Client) -> Result<JackAdapter> {
-        let processor = Processor::new(client.buffer_size() as usize * 2);
+        let mut processor = Processor::new(client.buffer_size() as usize * 2);
+        let sample = Sample::with_wave_file("assets/LoFi-drum-loop.wav")?;
+        processor
+            .plugins
+            .push(Plugin::OneShotSampler(OneShotSampler::new(sample)).into());
         let midi_in = client.register_port("midi_in", jack::MidiIn)?;
         let out_left = client.register_port("out_left", jack::AudioOut)?;
         let out_right = client.register_port("out_right", jack::AudioOut)?;
