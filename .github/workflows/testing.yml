@@ -10,12 +10,12 @@ jobs:
     Testing:
         runs-on: ubuntu-latest
         steps:
-            - name: Checkout Repository
+            - name: Checkout repository
               uses: actions/checkout@v3
-            - name: Update Package Metadata
+            - name: Update package metadata
               run: |
                sudo apt update
-            - name: Install Dependencies
+            - name: Install dependencies
               run: |
                # Most users will be on JACK spa (aka pipewire), but
                # pipewire is harder to set up on GitHub actions.
