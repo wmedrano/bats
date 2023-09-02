@@ -7,6 +7,7 @@ use log::*;
 use super::plugin_trait::GenericPlugin;
 
 /// Creates instances of `Lv2Plugin`.
+#[derive(Debug)]
 pub struct Lv2PluginFactory {
     /// Contains all the known LV2 plugins.
     world: livi::World,
@@ -202,7 +203,8 @@ mod tests {
     #[test]
     fn test_lv2_process_with_bad_plugin_saves_error() {
         let factory = Lv2PluginFactory::new(44100.0);
-        // This plugin's IO configuration is not supported.
+        // This plugin's IO configuration is not supported so it
+        // should produce an error during processing.
         let mut plugin =
             unsafe { factory.instantiate("http://drobilla.net/plugins/mda/TalkBox") }.unwrap();
 

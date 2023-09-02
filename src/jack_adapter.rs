@@ -10,6 +10,7 @@ use crate::{
 };
 
 /// `JackAdapter` implements the real-time audio component of bats.
+#[derive(Debug)]
 pub struct JackAdapter {
     /// The processor.
     processor: Processor,
@@ -28,7 +29,7 @@ impl JackAdapter {
         let sample = Sample::with_wave_file("assets/LoFi-drum-loop.wav")?;
         processor
             .plugins
-            .push(Plugin::OneShotSampler(OneShotSampler::new(sample)).into());
+            .push(Plugin::OneShotSampler(OneShotSampler::new(sample)));
         let midi_in = client.register_port("midi_in", jack::MidiIn)?;
         let out_left = client.register_port("out_left", jack::AudioOut)?;
         let out_right = client.register_port("out_right", jack::AudioOut)?;
@@ -43,7 +44,19 @@ impl JackAdapter {
 
     /// Connect the ports in `self` to physical ports.
     pub fn connect_ports(&self, client: &jack::Client) -> Result<()> {
+        // Connect physical midi ports.
+        let physical_midi_in_ports = client.ports(
+            None,
+            Some(jack::MidiOut.jack_port_type()),
+            jack::PortFlags::IS_PHYSICAL | jack::PortFlags::IS_OUTPUT,
+        );
+        let dst = self.midi_in.name()?;
+        for src in physical_midi_in_ports {
+            info!("Connecting midi port {} to {}.", src, dst);
+            client.connect_ports_by_name(&src, &dst)?;
+        }
         let self_audio_ports = [self.out_left.name()?, self.out_right.name()?];
+        // Connect physical audio ports.
         let physical_audio_out_ports = client.ports(
             None,
             Some(jack::AudioIn.jack_port_type()),
@@ -51,16 +64,6 @@ impl JackAdapter {
         );
         for (src, dst) in self_audio_ports.into_iter().zip(physical_audio_out_ports) {
             info!("Connecting audio port {} to {}.", src, dst);
-            client.connect_ports_by_name(&src, &dst)?;
-        }
-        let physical_midi_in_ports = client.ports(
-            None,
-            Some(jack::MidiOut.jack_port_type()),
-            jack::PortFlags::IS_PHYSICAL | jack::PortFlags::IS_OUTPUT,
-        );
-        let src = self.midi_in.name()?;
-        for dst in physical_midi_in_ports {
-            info!("Connecting midi port {} to {}.", src, dst);
             client.connect_ports_by_name(&src, &dst)?;
         }
         Ok(())

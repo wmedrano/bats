@@ -55,8 +55,8 @@ where {
         let (buffer_a, buffer_b) = self.tmp_duplex_buffer.split_at_mut(out_left.len());
         for plugin in self.plugins.iter_mut() {
             plugin.process(midi_in.clone(), buffer_a, buffer_b);
-            mix_to_buffer(out_left, &buffer_a);
-            mix_to_buffer(out_right, &buffer_b);
+            mix_to_buffer(out_left, buffer_a);
+            mix_to_buffer(out_right, buffer_b);
         }
         for buffer in [out_left, out_right] {
             for v in buffer.iter_mut() {

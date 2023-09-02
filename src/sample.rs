@@ -39,26 +39,30 @@ impl Sample {
     /// Load an audio sample from a wave file.
     ///
     /// TODO: Provide sample rate  conversion.
-    pub fn with_wave_file(p: impl AsRef<Path>) -> Result<Sample> {
-        let mut reader = hound::WavReader::open(p)?;
+    pub fn with_wave_file(path: impl AsRef<Path>) -> Result<Sample> {
+        let path = path.as_ref();
+        let mut reader = hound::WavReader::open(path)?;
         let spec = reader.spec();
         let maybe_data: Result<Vec<_>, _> = match spec.sample_format {
             hound::SampleFormat::Float => reader.samples::<f32>().collect(),
             hound::SampleFormat::Int => reader
                 .samples::<i16>()
-                .map(|r| r.map(|i| i as f32 / i16::MAX as f32))
+                .map(|r| r.map(|v| v as f32 / i16::MAX as f32))
                 .collect(),
         };
-        let data = maybe_data?;
+        let data =
+            maybe_data.map_err(|err| anyhow!("failed to decode wave file {path:?}: {}", err))?;
         match spec.channels {
-            0 => Err(anyhow!("wave file had 0 channels")),
+            0 => Err(anyhow!("wave file {path:?} had 0 channels")),
             1 => Ok(Sample::with_mono_data(&data)),
             2 => {
-                let data = deinterleave(&data);
+                let data = deinterleave_duplex(&data);
                 let (l, r) = data.split_at(data.len() / 2);
                 Sample::with_stereo_data(l, r)
             }
-            n => Err(anyhow!("expected 1 or 2 channels or got {}", n)),
+            n => Err(anyhow!(
+                "expected 1 or 2 channels but got {n} from {path:?}"
+            )),
         }
     }
 
@@ -116,7 +120,11 @@ impl Iterator for SampleIter {
     }
 }
 
-fn deinterleave(data: &[f32]) -> Vec<f32> {
+/// Turns a stream of interleaved audio (2 channels only) into two
+/// separate segments.
+/// Example:
+///   `[a1 b1 a2 b2 a3 b3] -> [a1 a2 a3 b1 b2 b3]`
+fn deinterleave_duplex(data: &[f32]) -> Vec<f32> {
     let mut ret = vec![0.0; data.len()];
     for (idx, v) in data.iter().enumerate() {
         if idx % 2 == 0 {

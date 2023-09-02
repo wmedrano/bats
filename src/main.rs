@@ -11,7 +11,7 @@ pub mod sample;
 /// Run the bats! program.
 fn main() {
     env_logger::builder()
-        .filter_level(LevelFilter::Info)
+        .filter_level(log::LevelFilter::Info)
         .try_init()
         .unwrap();
     let client = make_client().unwrap();
