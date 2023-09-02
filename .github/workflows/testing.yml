@@ -12,9 +12,11 @@ jobs:
         steps:
             - name: Checkout Repository
               uses: actions/checkout@v3
-            - name: Install Dependencies
+            - name: Update Package Metadata
               run: |
                sudo apt update
+            - name: Install Dependencies
+              run: |
                # Most users will be on JACK spa (aka pipewire), but
                # pipewire is harder to set up on GitHub actions.
                sudo apt install jackd libjack-dev libjack0 liblilv-dev
