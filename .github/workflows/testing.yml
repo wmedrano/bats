@@ -14,15 +14,16 @@ jobs:
               uses: actions/checkout@v3
             - name: Install Dependencies
               run: |
-               time sudo apt update
+               sudo apt update
                # Most users will be on JACK spa (aka pipewire), but
                # pipewire is harder to set up on GitHub actions.
-               echo Build deps: $(time sudo apt install jackd libjack-dev libjack0 liblilv-dev) &
-               echo Test deps: $(time sudo apt install mda-lv2) &
-               echo Rust deps: $(time cargo fetch) &
-               wait
+               sudo apt install jackd libjack-dev libjack0 liblilv-dev
+               # Required for tests.
+               sudo apt install mda-lv2
             - name: Run JACK server
               run: jackd -r -ddummy -r44100 -p1024 &
+            - name: Fetch Cargo Dependencies
+              run: cargo fetch
             - name: Lint
               run: cargo clippy || echo -e "\e[31mcargo clippy failed\f[0m"
             - name: Build
