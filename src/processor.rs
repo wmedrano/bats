@@ -1,4 +1,6 @@
 //! The main processing logic for bats!.
+use crossbeam_channel::{Receiver, Sender};
+
 use crate::plugins::plugin_trait::GenericPlugin;
 use crate::plugins::Plugin;
 
@@ -13,16 +15,31 @@ pub struct Processor {
 
     /// Contains enough audio data for two channels.
     tmp_duplex_buffer: Vec<f32>,
+
+    /// The callbacks that should be called on process.
+    callbacks: Receiver<ProcessorCallbackFn>,
+}
+
+/// A way to communicate asynchronously with a `Processor`.
+#[derive(Debug)]
+pub struct ProcessorCommunicator {
+    /// The channel to send callback functions to the `Processor`.
+    tx: Sender<ProcessorCallbackFn>,
 }
 
 impl Processor {
     /// Create a new `Processor` that can support buffer sizes of up to `max_buffer_size`.
-    pub fn new(max_buffer_size: usize) -> Processor {
-        Processor {
-            volume: 1.0,
-            plugins: Vec::with_capacity(64),
-            tmp_duplex_buffer: vec![0.0; max_buffer_size * 2],
-        }
+    pub fn new(max_buffer_size: usize) -> (Processor, ProcessorCommunicator) {
+        let (tx, rx) = crossbeam_channel::bounded(1024);
+        (
+            Processor {
+                volume: 1.0,
+                plugins: Vec::with_capacity(64),
+                tmp_duplex_buffer: vec![0.0; max_buffer_size * 2],
+                callbacks: rx,
+            },
+            ProcessorCommunicator { tx },
+        )
     }
 
     /// Perform processing and return the audio data to a vector.
@@ -49,6 +66,9 @@ where {
         out_left: &mut [f32],
         out_right: &mut [f32],
     ) {
+        while let Ok(f) = self.callbacks.try_recv() {
+            (f.0)(self);
+        }
         clear_buffer(out_left);
         clear_buffer(out_right);
         assert!(out_left.len() + out_right.len() <= self.tmp_duplex_buffer.len());
@@ -63,6 +83,41 @@ where {
                 *v *= self.volume;
             }
         }
+    }
+}
+
+impl ProcessorCommunicator {
+    /// Call function `f` in the processor thread and return the
+    /// result.
+    pub fn call<T: 'static + Send>(
+        &mut self,
+        f: impl 'static + Send + FnOnce(&mut Processor) -> T,
+    ) -> T {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        let wrapped_fn = move |p: &mut Processor| {
+            let v: T = f(p);
+            tx.send(v).unwrap();
+        };
+        self.call_async(wrapped_fn);
+        rx.recv().unwrap()
+    }
+
+    /// Send the function `f` to be called by the `Processor`. This
+    /// function will return immediately and `f` may be executed after
+    /// this function has returned.
+    fn call_async(&mut self, f: impl 'static + Send + FnOnce(&mut Processor)) {
+        self.tx.send(f.into()).unwrap();
+    }
+}
+
+struct ProcessorCallbackFn(Box<dyn 'static + Send + FnOnce(&mut Processor)>);
+
+impl<T> From<T> for ProcessorCallbackFn
+where
+    T: 'static + Send + FnOnce(&mut Processor),
+{
+    fn from(v: T) -> ProcessorCallbackFn {
+        ProcessorCallbackFn(Box::new(v))
     }
 }
 
@@ -87,13 +142,13 @@ mod tests {
     #[should_panic]
     #[test]
     fn test_processor_process_with_large_input_causes_panic() {
-        let mut processor = Processor::new(8);
+        let (mut processor, _) = Processor::new(8);
         processor.process_to_vec(16, std::iter::empty());
     }
 
     #[test]
     fn test_processor_inaction_produces_silence() {
-        let mut processor = Processor::new(8);
+        let (mut processor, _) = Processor::new(8);
         processor
             .plugins
             .push(OneShotSampler::new(Sample::with_mono_data(&[1.0])).into());
@@ -104,7 +159,7 @@ mod tests {
 
     #[test]
     fn test_processor_pressing_note_produces_sound_on_same_frame() {
-        let mut processor = Processor::new(8);
+        let (mut processor, _) = Processor::new(8);
         processor
             .plugins
             .push(OneShotSampler::new(Sample::with_mono_data(&[1.0])).into());
@@ -121,7 +176,7 @@ mod tests {
 
     #[test]
     fn test_processor_releasing_note_cuts_off_sound() {
-        let mut processor = Processor::new(8);
+        let (mut processor, _) = Processor::new(8);
         processor
             .plugins
             .push(OneShotSampler::new(Sample::with_mono_data(&[1.0])).into());
@@ -147,7 +202,7 @@ mod tests {
 
     #[test]
     fn test_changing_output_volume_scales_final_output() {
-        let mut processor = Processor::new(8);
+        let (mut processor, _) = Processor::new(8);
         processor
             .plugins
             .push(OneShotSampler::new(Sample::with_mono_data(&[1.0, 0.5])).into());
@@ -166,7 +221,7 @@ mod tests {
 
     #[test]
     fn test_processor_add_multiple_plugins_sums_signals() {
-        let mut processor = Processor::new(8);
+        let (mut processor, _) = Processor::new(8);
         processor
             .plugins
             .push(OneShotSampler::new(Sample::with_mono_data(&[0.1, 0.2])).into());
@@ -183,5 +238,33 @@ mod tests {
         let (left, right) = processor.process_to_vec(2, std::iter::once((0, note_on.as_slice())));
         assert_eq!(left, vec![0.11, 0.22]);
         assert_eq!(right, vec![0.11, 0.22]);
+    }
+
+    #[test]
+    fn test_processor_communicator_call_calls_fn_on_processor() {
+        let (mut processor, mut communicator) = Processor::new(8);
+
+        // Call asynchronously.
+        std::thread::spawn(move || {
+            let ret = communicator.call(|p| {
+                p.plugins
+                    .push(OneShotSampler::new(Sample::with_mono_data(&[1.0])).into());
+                "async_return_value"
+            });
+            assert_eq!(ret, "async_return_value");
+        });
+        // Allow some time for thread to spawn and execute.
+        std::thread::sleep(std::time::Duration::from_secs(1));
+
+        // Observe side effects.
+        let note_on = wmidi::MidiMessage::NoteOn(
+            wmidi::Channel::Ch1,
+            wmidi::Note::C1,
+            wmidi::U7::from_u8_lossy(100),
+        )
+        .to_vec();
+        let (left, right) = processor.process_to_vec(2, std::iter::once((1, note_on.as_slice())));
+        assert_eq!(left, vec![0.0, 1.0]);
+        assert_eq!(right, vec![0.0, 1.0]);
     }
 }

@@ -3,17 +3,13 @@ use anyhow::Result;
 use jack::PortSpec;
 use log::*;
 
-use crate::{
-    plugins::{sampler::OneShotSampler, Plugin},
-    processor::Processor,
-    sample::Sample,
-};
+use crate::processor::{Processor, ProcessorCommunicator};
 
 /// `JackAdapter` implements the real-time audio component of bats.
 #[derive(Debug)]
 pub struct JackAdapter {
     /// The processor.
-    processor: Processor,
+    pub processor: Processor,
     /// The midi input.
     midi_in: jack::Port<jack::MidiIn>,
     /// The left audio output.
@@ -24,22 +20,21 @@ pub struct JackAdapter {
 
 impl JackAdapter {
     /// Create a new `JackAdapter`.
-    pub fn new(client: &jack::Client) -> Result<JackAdapter> {
-        let mut processor = Processor::new(client.buffer_size() as usize * 2);
-        let sample = Sample::with_wave_file("assets/LoFi-drum-loop.wav")?;
-        processor
-            .plugins
-            .push(Plugin::OneShotSampler(OneShotSampler::new(sample)));
+    pub fn new(client: &jack::Client) -> Result<(JackAdapter, ProcessorCommunicator)> {
+        let (processor, processor_tx) = Processor::new(client.buffer_size() as usize * 2);
         let midi_in = client.register_port("midi_in", jack::MidiIn)?;
         let out_left = client.register_port("out_left", jack::AudioOut)?;
         let out_right = client.register_port("out_right", jack::AudioOut)?;
 
-        Ok(JackAdapter {
-            processor,
-            midi_in,
-            out_left,
-            out_right,
-        })
+        Ok((
+            JackAdapter {
+                processor,
+                midi_in,
+                out_left,
+                out_right,
+            },
+            processor_tx,
+        ))
     }
 
     /// Connect the ports in `self` to physical ports.
