@@ -12,12 +12,13 @@ jobs:
         steps:
             - name: Install Dependencies
               run: |
-               sudo apt update
+               time sudo apt update
                # Most users will be on JACK spa (aka pipewire), but
                # pipewire is harder to set up on GitHub actions.
-               sudo apt install jackd libjack-dev libjack0 liblilv-dev
-               # Required for tests.
-               sudo apt install mda-lv2
+               time sudo apt install jackd libjack-dev libjack0 liblilv-dev &
+               time sudo apt install mda-lv2 &
+               time cargo fetch &
+               wait
             - name: Run JACK server
               run: jackd -r -ddummy -r44100 -p1024 &
             - name: Checkout Repository
