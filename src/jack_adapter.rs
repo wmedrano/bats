@@ -37,31 +37,41 @@ impl JackAdapter {
         ))
     }
 
-    /// Connect the ports in `self` to physical ports.
-    pub fn connect_ports(&self, client: &jack::Client) -> Result<()> {
-        // Connect physical midi ports.
-        let physical_midi_in_ports = client.ports(
-            None,
-            Some(jack::MidiOut.jack_port_type()),
-            jack::PortFlags::IS_PHYSICAL | jack::PortFlags::IS_OUTPUT,
-        );
-        let dst = self.midi_in.name()?;
-        for src in physical_midi_in_ports {
-            info!("Connecting midi port {} to {}.", src, dst);
-            client.connect_ports_by_name(&src, &dst)?;
+    /// Returns a function that connects the ports in `self` to
+    /// physical ports. The connector function has a higher chance of
+    /// suceeding if called after `self` has been activated for
+    /// processing.
+    pub fn connect_ports_fn(&self) -> impl FnOnce() -> Result<()> {
+        let self_midi_in_port = self.midi_in.name();
+        let self_audio_ports = [self.out_left.name(), self.out_right.name()];
+
+        move || {
+            let (client, _) =
+                jack::Client::new("bats_connector", jack::ClientOptions::NO_START_SERVER)?;
+            // Connect physical midi ports.
+            let physical_midi_in_ports = client.ports(
+                None,
+                Some(jack::MidiOut.jack_port_type()),
+                jack::PortFlags::IS_PHYSICAL | jack::PortFlags::IS_OUTPUT,
+            );
+            let dst = self_midi_in_port?;
+            for src in physical_midi_in_ports {
+                info!("Connecting midi port {} to {}.", src, dst);
+                client.connect_ports_by_name(&src, &dst)?;
+            }
+            // Connect physical audio ports.
+            let physical_audio_out_ports = client.ports(
+                None,
+                Some(jack::AudioIn.jack_port_type()),
+                jack::PortFlags::IS_PHYSICAL | jack::PortFlags::IS_INPUT,
+            );
+            for (src, dst) in self_audio_ports.into_iter().zip(physical_audio_out_ports) {
+                let src = src?;
+                info!("Connecting audio port {} to {}.", src, dst);
+                client.connect_ports_by_name(&src, &dst)?;
+            }
+            Ok(())
         }
-        let self_audio_ports = [self.out_left.name()?, self.out_right.name()?];
-        // Connect physical audio ports.
-        let physical_audio_out_ports = client.ports(
-            None,
-            Some(jack::AudioIn.jack_port_type()),
-            jack::PortFlags::IS_PHYSICAL | jack::PortFlags::IS_INPUT,
-        );
-        for (src, dst) in self_audio_ports.into_iter().zip(physical_audio_out_ports) {
-            info!("Connecting audio port {} to {}.", src, dst);
-            client.connect_ports_by_name(&src, &dst)?;
-        }
-        Ok(())
     }
 }
 
