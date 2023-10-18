@@ -1,6 +1,5 @@
 use anyhow::Result;
-
-use crate::bats::Bats;
+use bats_lib::Bats;
 
 /// Implements the JACK processor.
 #[derive(Debug)]

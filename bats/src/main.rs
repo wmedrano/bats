@@ -1,7 +1,6 @@
 use anyhow::Result;
 use log::info;
 
-pub mod bats;
 pub mod jack_adapter;
 
 fn main() -> Result<()> {

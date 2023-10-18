@@ -37,8 +37,15 @@ jobs:
             - name: Update package metadata
               run: sudo apt update
             - name: Install dependencies
-              run: sudo apt install libjack-dev liblilv-dev
+              run: sudo apt install libjack-dev
             - name: Fetch Cargo Dependencies
               run: cargo fetch
             - name: Lint
               run: cargo clippy
+    Benchmarking:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v3
+            - name: Benchmark
+              run: cargo bench -p bats-lib
