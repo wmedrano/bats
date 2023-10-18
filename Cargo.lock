@@ -25,6 +25,7 @@ dependencies = [
  "env_logger",
  "jack",
  "log",
+ "wmidi",
 ]
 
 [[package]]
@@ -311,3 +312,9 @@ name = "windows_x86_64_msvc"
 version = "0.48.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed94fce61571a4006852b7389a063ab983c02eb1bb37b47f8272ce92d06d9538"
+
+[[package]]
+name = "wmidi"
+version = "4.0.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e672211abbca5680d2b2507501d5ba526d277212b2a7ccacfe1ef3b73556711b"
