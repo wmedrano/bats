@@ -1,3 +1,4 @@
+/// Handles all processing.
 #[derive(Default, Debug, Clone)]
 pub struct Bats {}
 
