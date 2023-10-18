@@ -48,4 +48,4 @@ jobs:
             - name: Checkout repository
               uses: actions/checkout@v3
             - name: Benchmark
-              run: cargo bench
+              run: cargo bench -p bats-lib
