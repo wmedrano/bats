@@ -1,0 +1,44 @@
+name: Testing
+on:
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
+env:
+    CARGO_TERM_COLOR: always
+jobs:
+    Testing:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v3
+            - name: Update package metadata
+              run: sudo apt update
+            - name: Install dependencies
+              run: |
+               # Most users will be on JACK spa (aka pipewire), but
+               # pipewire is harder to set up on GitHub actions.
+               sudo apt install jackd libjack-dev libjack0
+            - name: Run JACK server
+              run: jackd -r -ddummy -r44100 -p1024 &
+            - name: Fetch Cargo Dependencies
+              run: cargo fetch
+            - name: Build
+              run: cargo build --verbose
+            - name: Build Tests
+              run: cargo test --no-run --verbose
+            - name: Test
+              run: cargo test --verbose
+    Linting:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v3
+            - name: Update package metadata
+              run: sudo apt update
+            - name: Install dependencies
+              run: sudo apt install libjack-dev liblilv-dev
+            - name: Fetch Cargo Dependencies
+              run: cargo fetch
+            - name: Lint
+              run: cargo clippy
