@@ -1,11 +1,13 @@
 use metronome::Metronome;
+use plugin::{toof::Toof, BatsInstrument};
 use position::Position;
 
 pub mod metronome;
+pub mod plugin;
 pub mod position;
 
 /// Handles all processing.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Bats {
     /// The metronome.
     pub metronome: Metronome,
@@ -16,6 +18,19 @@ pub struct Bats {
     /// Note: The first entry in the slice represents the previous
     /// position.
     transport: Vec<Position>,
+    /// The active plugins.
+    plugin: Vec<PluginWithBuffer>,
+}
+
+/// An plugin with output buffers.
+#[derive(Debug)]
+struct PluginWithBuffer {
+    /// The plugin.
+    plugin: Toof,
+    /// The left audio output.
+    left: Vec<f32>,
+    /// The right audio output.
+    right: Vec<f32>,
 }
 
 impl Bats {
@@ -25,18 +40,22 @@ impl Bats {
             metronome: Metronome::new(sample_rate, 120.0),
             metronome_volume: 0.8,
             transport: Vec::with_capacity(buffer_size + 1),
+            plugin: vec![PluginWithBuffer {
+                plugin: Toof::new(sample_rate),
+                left: vec![0f32; buffer_size],
+                right: vec![0f32; buffer_size],
+            }],
         }
     }
 
     /// Process midi data and output audio.
-    pub fn process<'a>(
+    pub fn process(
         &mut self,
-        midi: impl Clone + Iterator<Item = &'a (u32, wmidi::MidiMessage<'static>)>,
+        midi: &[(u32, wmidi::MidiMessage<'static>)],
         left: &mut [f32],
         right: &mut [f32],
     ) {
         let sample_count = left.len().min(right.len());
-        for _ in midi {}
         process_metronome(
             sample_count,
             &mut self.metronome,
@@ -45,6 +64,13 @@ impl Bats {
             right,
             &mut self.transport,
         );
+        for plugin in self.plugin.iter_mut() {
+            plugin
+                .plugin
+                .process(midi, &mut plugin.left, &mut plugin.right);
+            mix(left, &plugin.left, 0.5);
+            mix(right, &plugin.right, 0.5);
+        }
     }
 }
 
@@ -81,6 +107,12 @@ fn process_metronome(
     }
 }
 
+fn mix(dst: &mut [f32], src: &[f32], volume: f32) {
+    for (d, s) in dst.iter_mut().zip(src.iter()) {
+        *d += volume * s;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -89,7 +121,7 @@ mod tests {
     fn no_input_produces_metronome() {
         let mut left = [1.0, 2.0, 3.0];
         let mut right = [4.0, 5.0, 6.0];
-        Bats::new(44100.0, left.len()).process(std::iter::empty(), &mut left, &mut right);
+        Bats::new(44100.0, left.len()).process(&[], &mut left, &mut right);
         assert_eq!(left, [0.8, 0.0, 0.0]);
         assert_eq!(right, [0.8, 0.0, 0.0]);
     }
@@ -100,7 +132,7 @@ mod tests {
         let mut right = vec![0.0; 44100];
         let mut bats = Bats::new(44100.0, 44100);
         bats.metronome.set_bpm(44100.0, 120.0);
-        bats.process(std::iter::empty(), &mut left, &mut right);
+        bats.process(&[], &mut left, &mut right);
         // At 120 BPM, it should tick twice in a second.
         assert_eq!(left.iter().filter(|v| 0.0 != **v).count(), 2);
         assert_eq!(right.iter().filter(|v| 0.0 != **v).count(), 2);

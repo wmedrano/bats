@@ -80,7 +80,7 @@ impl jack::ProcessHandler for ProcessHandler {
             }
         }
         self.bats.process(
-            self.midi_buffer.iter(),
+            self.midi_buffer.as_slice(),
             self.ports.left.as_mut_slice(ps),
             self.ports.right.as_mut_slice(ps),
         );

@@ -1,15 +1,42 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use wmidi::{Channel, MidiMessage, Note, U7};
 
 const BUFFER_SIZES: [usize; 3] = [64, 128, 256];
 const DEFAULT_SAMPLE_RATE: f32 = 44100.0;
+const PRESS_C4: wmidi::MidiMessage<'static> =
+    wmidi::MidiMessage::NoteOn(Channel::Ch1, Note::C4, U7::MAX);
+const RELEASE_C4: wmidi::MidiMessage<'static> =
+    wmidi::MidiMessage::NoteOff(Channel::Ch1, Note::C4, U7::MIN);
+const PRESS_A4: wmidi::MidiMessage<'static> =
+    wmidi::MidiMessage::NoteOn(Channel::Ch1, Note::A4, U7::MAX);
+const RELEASE_A4: wmidi::MidiMessage<'static> =
+    wmidi::MidiMessage::NoteOff(Channel::Ch1, Note::A4, U7::MIN);
 
 fn bats_benchmark(c: &mut Criterion) {
     for buffer_size in BUFFER_SIZES {
         c.bench_function(&format!("bats_empty_{buffer_size}"), |b| {
             let mut bats = bats_lib::Bats::new(DEFAULT_SAMPLE_RATE, buffer_size);
             let (mut left, mut right) = make_buffers(buffer_size);
+            let midi = black_box(&[]);
             b.iter(move || {
-                bats.process(std::iter::empty(), &mut left, &mut right);
+                bats.process(midi, &mut left, &mut right);
+            })
+        });
+    }
+    for buffer_size in BUFFER_SIZES {
+        c.bench_function(&format!("bats_toof_{buffer_size}"), |b| {
+            let mut bats = bats_lib::Bats::new(DEFAULT_SAMPLE_RATE, buffer_size);
+            let (mut left, mut right) = make_buffers(buffer_size);
+            let midi = black_box([
+                (0, MidiMessage::NoteOn(Channel::Ch1, Note::C4, U7::MAX)),
+                (
+                    buffer_size as u32 / 2,
+                    MidiMessage::NoteOff(Channel::Ch1, Note::C4, U7::MIN),
+                ),
+            ]);
+            let midi_ref = black_box(&midi);
+            b.iter(move || {
+                bats.process(midi_ref, &mut left, &mut right);
             })
         });
     }
@@ -18,7 +45,10 @@ fn bats_benchmark(c: &mut Criterion) {
 fn metronome_benchmark(c: &mut Criterion) {
     for buffer_size in BUFFER_SIZES {
         c.bench_function(&format!("metronome_tick_{buffer_size}"), |b| {
-            let mut metronome = bats_lib::metronome::Metronome::new(DEFAULT_SAMPLE_RATE, 120.0);
+            let mut metronome = black_box(bats_lib::metronome::Metronome::new(
+                DEFAULT_SAMPLE_RATE,
+                120.0,
+            ));
             b.iter(move || {
                 for _ in 0..buffer_size {
                     metronome.next_position();
@@ -28,9 +58,28 @@ fn metronome_benchmark(c: &mut Criterion) {
     }
 }
 
-criterion_group!(benches, bats_benchmark, metronome_benchmark);
+fn toof_benchmark(c: &mut Criterion) {
+    for buffer_size in BUFFER_SIZES {
+        c.bench_function(&format!("toof_{buffer_size}"), |b| {
+            let mut bats = bats_lib::Bats::new(DEFAULT_SAMPLE_RATE, buffer_size);
+            let (mut left, mut right) = make_buffers(buffer_size);
+            let midi = black_box([
+                (0, PRESS_C4.clone()),
+                (2 * buffer_size as u32 / 4, PRESS_A4.clone()),
+                (3 * buffer_size as u32 / 4, RELEASE_C4.clone()),
+                ((4 * buffer_size as u32 - 1) / 4, RELEASE_A4.clone()),
+            ]);
+            let midi_ref = black_box(&midi);
+            b.iter(move || {
+                bats.process(midi_ref, &mut left, &mut right);
+            })
+        });
+    }
+}
+
+criterion_group!(benches, bats_benchmark, metronome_benchmark, toof_benchmark);
 criterion_main!(benches);
 
 fn make_buffers(buffer_size: usize) -> (Vec<f32>, Vec<f32>) {
-    (vec![0f32; buffer_size], vec![0f32; buffer_size])
+    black_box((vec![0f32; buffer_size], vec![0f32; buffer_size]))
 }
