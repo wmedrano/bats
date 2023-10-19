@@ -15,7 +15,8 @@ fn main() -> Result<()> {
     );
 
     let (client, status) = jack::Client::new("bats", jack::ClientOptions::NO_START_SERVER)?;
-    info!("Started client {} with status {:?}", client.name(), status);
+    info!("Started JACK client {:?}.", client);
+    info!("JACK status is {:?}", status);
     let process_handler = jack_adapter::ProcessHandler::new(&client)?;
     let client = client.activate_async((), process_handler)?;
     std::thread::park();

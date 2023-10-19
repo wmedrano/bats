@@ -1,5 +1,6 @@
 use anyhow::Result;
 use bats_lib::Bats;
+use log::info;
 
 /// Implements the JACK processor.
 #[derive(Debug)]
@@ -15,9 +16,11 @@ pub struct ProcessHandler {
 impl ProcessHandler {
     /// Create a new `ProcessHandler` with ports registered from `c`.
     pub fn new(c: &jack::Client) -> Result<ProcessHandler> {
+        let bats = Bats::new(c.sample_rate() as f32, c.buffer_size() as usize);
+        info!("Created bats {:?}", bats);
         Ok(ProcessHandler {
             ports: Ports::new(c)?,
-            bats: Bats::default(),
+            bats,
             midi_buffer: Vec::with_capacity(4096),
         })
     }
