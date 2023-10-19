@@ -1,5 +1,5 @@
 use anyhow::Result;
-use log::info;
+use log::{error, info};
 
 pub mod jack_adapter;
 
@@ -18,7 +18,16 @@ fn main() -> Result<()> {
     info!("Started JACK client {:?}.", client);
     info!("JACK status is {:?}", status);
     let process_handler = jack_adapter::ProcessHandler::new(&client)?;
+    let mut connector = match process_handler.connector() {
+        Ok(f) => f,
+        Err(err) => {
+            error!("Failed to create port connector! IO ports will have to be connected manually. Error: {}", err);
+            Box::new(|| {})
+        }
+    };
     let client = client.activate_async((), process_handler)?;
+    std::thread::sleep(std::time::Duration::from_secs(1));
+    connector();
     std::thread::park();
     client.deactivate()?;
     Ok(())
