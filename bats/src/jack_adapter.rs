@@ -18,7 +18,6 @@ impl ProcessHandler {
     /// Create a new `ProcessHandler` with ports registered from `c`.
     pub fn new(c: &jack::Client) -> Result<ProcessHandler> {
         let bats = Bats::new(c.sample_rate() as f32, c.buffer_size() as usize);
-        info!("Created bats {:?}", bats);
         Ok(ProcessHandler {
             ports: Ports::new(c)?,
             bats,
@@ -28,7 +27,7 @@ impl ProcessHandler {
 
     /// Returns a function that connects this `ProcessHandler`'s
     /// virtual ports to physical ports.
-    pub fn connector(&self) -> Result<Box<dyn FnMut()>> {
+    pub fn connector(&self) -> Result<Box<dyn Send + FnMut()>> {
         let (connector_client, status) =
             jack::Client::new("bats_connector", jack::ClientOptions::NO_START_SERVER)?;
         info!(

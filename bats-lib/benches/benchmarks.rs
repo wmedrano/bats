@@ -3,16 +3,20 @@ use wmidi::{Channel, MidiMessage, Note, U7};
 
 const BUFFER_SIZES: [usize; 3] = [64, 128, 256];
 const DEFAULT_SAMPLE_RATE: f32 = 44100.0;
-const PRESS_C4: wmidi::MidiMessage<'static> =
-    wmidi::MidiMessage::NoteOn(Channel::Ch1, Note::C4, U7::MAX);
-const RELEASE_C4: wmidi::MidiMessage<'static> =
-    wmidi::MidiMessage::NoteOff(Channel::Ch1, Note::C4, U7::MIN);
-const PRESS_A4: wmidi::MidiMessage<'static> =
-    wmidi::MidiMessage::NoteOn(Channel::Ch1, Note::A4, U7::MAX);
-const RELEASE_A4: wmidi::MidiMessage<'static> =
-    wmidi::MidiMessage::NoteOff(Channel::Ch1, Note::A4, U7::MIN);
+const PRESS_C4: MidiMessage<'static> = MidiMessage::NoteOn(Channel::Ch1, Note::C4, U7::MAX);
+const RELEASE_C4: MidiMessage<'static> = MidiMessage::NoteOff(Channel::Ch1, Note::C4, U7::MIN);
+const PRESS_A4: MidiMessage<'static> = MidiMessage::NoteOn(Channel::Ch1, Note::A4, U7::MAX);
+const RELEASE_A4: MidiMessage<'static> = MidiMessage::NoteOff(Channel::Ch1, Note::A4, U7::MIN);
 
 fn bats_benchmark(c: &mut Criterion) {
+    {
+        let buffer_size = *BUFFER_SIZES.last().unwrap();
+        c.bench_function(&format!("bats_init_{buffer_size}"), |b| {
+            b.iter(|| {
+                let _ = bats_lib::Bats::new(DEFAULT_SAMPLE_RATE, buffer_size);
+            })
+        });
+    }
     for buffer_size in BUFFER_SIZES {
         c.bench_function(&format!("bats_empty_{buffer_size}"), |b| {
             let mut bats = bats_lib::Bats::new(DEFAULT_SAMPLE_RATE, buffer_size);
@@ -24,15 +28,12 @@ fn bats_benchmark(c: &mut Criterion) {
         });
     }
     for buffer_size in BUFFER_SIZES {
-        c.bench_function(&format!("bats_toof_{buffer_size}"), |b| {
-            let mut bats = bats_lib::Bats::new(DEFAULT_SAMPLE_RATE, buffer_size);
+        c.bench_function(&format!("bats_with_plugins_{buffer_size}"), |b| {
+            let mut bats = black_box(bats_lib::Bats::new(DEFAULT_SAMPLE_RATE, buffer_size));
             let (mut left, mut right) = make_buffers(buffer_size);
             let midi = black_box([
-                (0, MidiMessage::NoteOn(Channel::Ch1, Note::C4, U7::MAX)),
-                (
-                    buffer_size as u32 / 2,
-                    MidiMessage::NoteOff(Channel::Ch1, Note::C4, U7::MIN),
-                ),
+                (0, PRESS_C4.clone()),
+                (buffer_size as u32 / 2, RELEASE_C4.clone()),
             ]);
             let midi_ref = black_box(&midi);
             b.iter(move || {

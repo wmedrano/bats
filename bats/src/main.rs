@@ -26,9 +26,12 @@ fn main() -> Result<()> {
         }
     };
     let client = client.activate_async((), process_handler)?;
-    std::thread::sleep(std::time::Duration::from_secs(1));
-    connector();
-    std::thread::park();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        connector();
+    });
+    bats_ui::Ui::new()?.run()?;
+    info!("Exiting bats!");
     client.deactivate()?;
     Ok(())
 }
