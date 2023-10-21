@@ -1,12 +1,12 @@
 use anyhow::{anyhow, Result};
 use colors::ColorScheme;
+use frame_counter::FrameCounter;
 use log::info;
-use sdl2::{
-    event::Event, keyboard::Keycode, render::Canvas, ttf::FontStyle, video::Window, EventPump,
-};
+use sdl2::{event::Event, keyboard::Keycode, render::Canvas, video::Window, EventPump};
 use text::TextRenderer;
 
 pub mod colors;
+pub mod frame_counter;
 pub mod text;
 
 /// Options the user has requested for the window.
@@ -31,8 +31,8 @@ pub struct Ui {
     text_renderer: TextRenderer,
     /// The name of the current plugins.
     plugin_names: Vec<&'static str>,
-    /// The frame number.
-    frame_number: usize,
+    /// Frame stats.
+    frame_counter: FrameCounter,
 }
 
 impl Ui {
@@ -61,7 +61,7 @@ impl Ui {
             color_scheme,
             text_renderer,
             plugin_names,
-            frame_number: 0,
+            frame_counter: FrameCounter::new(),
         })
     }
 
@@ -69,8 +69,8 @@ impl Ui {
     /// requests an exit.
     pub fn run(&mut self) -> Result<()> {
         while self.handle_events() == ProgramRequest::Continue {
-            self.frame_number += 1;
-            self.render(self.frame_number);
+            let frame_number = self.frame_counter.next_frame();
+            self.render(frame_number);
         }
         Ok(())
     }
@@ -98,29 +98,22 @@ impl Ui {
     fn render(&mut self, frame_number: usize) {
         self.canvas.set_draw_color(self.color_scheme.background);
         self.canvas.clear();
-
-        self.text_renderer.set_style(FontStyle::BOLD);
-        let (_, height) = self
-            .text_renderer
-            .render(
+        self.text_renderer
+            .render_menu(
                 &mut self.canvas,
-                "active plugins".to_string(),
                 self.color_scheme.foreground,
-                (0, 0),
+                "active plugins".to_string(),
+                self.plugin_names.iter().map(|s| s.to_string()),
             )
             .unwrap();
-        self.text_renderer.set_style(FontStyle::empty());
-        for (idx, plugin_name) in self.plugin_names.iter().enumerate() {
-            let y = (idx + 1) as i32 * height as i32;
-            self.text_renderer
-                .render(
-                    &mut self.canvas,
-                    plugin_name.to_string(),
-                    self.color_scheme.foreground,
-                    (16, y),
-                )
-                .unwrap();
-        }
+        self.text_renderer
+            .render(
+                &mut self.canvas,
+                self.frame_counter.fps().to_string(),
+                self.color_scheme.middleground,
+                (232, 220),
+            )
+            .unwrap();
         if frame_number % 256 == 0 {
             self.text_renderer.clear_unused_cache();
         }

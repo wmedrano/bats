@@ -56,6 +56,24 @@ impl TextRenderer {
         self.texture_cache.retain(|_k, v| v.accesses > 0);
     }
 
+    /// Render a simple menu onto `dst`.
+    pub fn render_menu(
+        &mut self,
+        dst: &mut Canvas<Window>,
+        color: Color,
+        header: String,
+        items: impl Iterator<Item = String>,
+    ) -> Result<()> {
+        self.set_style(FontStyle::BOLD);
+        let (_, height) = self.render(dst, header, color, (0, 0))?;
+        self.set_style(FontStyle::empty());
+        for (idx, item) in items.enumerate() {
+            let x_y = (16, height as i32 * (idx + 1) as i32);
+            self.render(dst, item, color, x_y)?;
+        }
+        Ok(())
+    }
+
     /// Render text onto `dst`.
     pub fn render(
         &mut self,
@@ -64,6 +82,9 @@ impl TextRenderer {
         color: Color,
         x_y: (i32, i32),
     ) -> Result<(u32, u32)> {
+        if text.is_empty() {
+            return Ok((0, 0));
+        }
         let key = CacheKey {
             text,
             style: self.font.get_style(),

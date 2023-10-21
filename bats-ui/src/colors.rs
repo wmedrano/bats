@@ -7,6 +7,8 @@ pub struct ColorScheme {
     pub foreground: Color,
     /// The background color.
     pub background: Color,
+    /// The middleground color. This is usually for unimportant text.
+    pub middleground: Color,
 }
 
 impl Default for ColorScheme {
@@ -14,6 +16,7 @@ impl Default for ColorScheme {
         ColorScheme {
             foreground: Color::RGB(255, 255, 255),
             background: Color::RGB(0, 0, 0),
+            middleground: Color::RGB(128, 128, 128),
         }
     }
 }
