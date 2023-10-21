@@ -46,6 +46,15 @@ fn bats_benchmark(c: &mut Criterion) {
 }
 
 fn metronome_benchmark(c: &mut Criterion) {
+    c.bench_function(&format!("metronome_new"), |b| {
+        b.iter(move || {
+            let mut metronome = black_box(bats_lib::metronome::Metronome::new(
+                DEFAULT_SAMPLE_RATE,
+                120.0,
+            ));
+            metronome.next_position()
+        })
+    });
     for buffer_size in BUFFER_SIZES {
         c.bench_function(&format!("metronome_tick_{buffer_size}"), |b| {
             let mut metronome = black_box(bats_lib::metronome::Metronome::new(
