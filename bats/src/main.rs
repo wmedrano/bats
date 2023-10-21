@@ -27,13 +27,13 @@ fn main() -> Result<()> {
 
     let bats = make_bats(&client, args.load_initial_plugin);
     let plugin_names = bats.iter_plugins().map(|p| p.name()).collect();
-    let process_handler = jack_adapter::ProcessHandler::new(&client, bats)?;
+    let (process_handler, commands) = jack_adapter::ProcessHandler::new(&client, bats)?;
     let maybe_connector = maybe_make_connector(&process_handler, args.auto_connect_ports);
     let client = client.activate_async((), process_handler)?;
     spawn_connector_daemon(maybe_connector);
 
     info!("Creating UI with plugins: {:?}", plugin_names);
-    bats_ui::Ui::new(plugin_names)?.run()?;
+    bats_ui::Ui::new(commands, plugin_names)?.run()?;
     info!("Exiting bats!");
     client.deactivate()?;
     Ok(())

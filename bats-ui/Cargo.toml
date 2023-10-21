@@ -7,5 +7,6 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.75"
+bats-lib = { path = "../bats-lib" }
 log = "0.4"
 sdl2 = { version = "0.35", features = ["ttf"] }

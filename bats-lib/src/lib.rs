@@ -2,6 +2,7 @@ use metronome::Metronome;
 use plugin::{toof::Toof, BatsInstrument};
 use position::Position;
 
+pub mod command;
 pub mod metronome;
 pub mod plugin;
 pub mod position;

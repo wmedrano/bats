@@ -1,5 +1,8 @@
 use anyhow::Result;
-use bats_lib::Bats;
+use bats_lib::{
+    command::{new_async_commander, CommandReceiver, CommandSender},
+    Bats,
+};
 use jack::PortSpec;
 use log::{info, warn};
 
@@ -10,18 +13,25 @@ pub struct ProcessHandler {
     ports: Ports,
     /// The bats processing object.
     bats: Bats,
+    /// Command queue for the bats processing object.
+    commands: CommandReceiver,
     /// An intermediate midi buffer.
     midi_buffer: Vec<(u32, wmidi::MidiMessage<'static>)>,
 }
 
 impl ProcessHandler {
     /// Create a new `ProcessHandler` with ports registered from `c`.
-    pub fn new(c: &jack::Client, bats: Bats) -> Result<ProcessHandler> {
-        Ok(ProcessHandler {
-            ports: Ports::new(c)?,
-            bats,
-            midi_buffer: Vec::with_capacity(4096),
-        })
+    pub fn new(c: &jack::Client, bats: Bats) -> Result<(ProcessHandler, CommandSender)> {
+        let (command_sender, command_receiver) = new_async_commander();
+        Ok((
+            ProcessHandler {
+                ports: Ports::new(c)?,
+                bats,
+                commands: command_receiver,
+                midi_buffer: Vec::with_capacity(4096),
+            },
+            command_sender,
+        ))
     }
 
     /// Returns a function that connects this `ProcessHandler`'s
@@ -91,6 +101,7 @@ impl jack::ProcessHandler for ProcessHandler {
                 }
             }
         }
+        self.commands.execute_all(&mut self.bats);
         self.bats.process(
             self.midi_buffer.as_slice(),
             self.ports.left.as_mut_slice(ps),
