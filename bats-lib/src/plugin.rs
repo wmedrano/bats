@@ -2,11 +2,11 @@ pub mod toof;
 
 /// Defines a generic instrument plugin.
 pub trait BatsInstrument {
-    /// The name of the plugin.
-    const NAME: &'static str;
-
     /// Create a new plugin.
     fn new(sample_rate: f32) -> Self;
+
+    /// The name of the plugin.
+    fn name(&self) -> &'static str;
 
     /// Handle processing of `midi_in` and output to `left_out` and
     /// `right_out`.

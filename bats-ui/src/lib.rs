@@ -30,14 +30,14 @@ pub struct Ui {
     /// The text renderer.
     text_renderer: TextRenderer,
     /// The name of the current plugins.
-    plugin_names: Vec<String>,
+    plugin_names: Vec<&'static str>,
     /// The frame number.
     frame_number: usize,
 }
 
 impl Ui {
     /// Create a new `Ui`.
-    pub fn new(plugin_names: Vec<String>) -> Result<Ui> {
+    pub fn new(plugin_names: Vec<&'static str>) -> Result<Ui> {
         let sdl_context = sdl2::init().map_err(anyhow::Error::msg)?;
         let video_subsystem = sdl_context.video().map_err(anyhow::Error::msg)?;
         let window = video_subsystem
@@ -115,7 +115,7 @@ impl Ui {
             self.text_renderer
                 .render(
                     &mut self.canvas,
-                    plugin_name.clone(),
+                    plugin_name.to_string(),
                     self.color_scheme.foreground,
                     (16, y),
                 )

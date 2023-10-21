@@ -44,11 +44,7 @@ impl Bats {
             metronome: Metronome::new(sample_rate, 120.0),
             metronome_volume: 0.8,
             transport: Vec::with_capacity(buffer_size + 1),
-            plugin: vec![PluginWithBuffer {
-                plugin: Toof::new(sample_rate),
-                left: vec![0f32; buffer_size],
-                right: vec![0f32; buffer_size],
-            }],
+            plugin: Vec::with_capacity(16),
             buffer_size,
             sample_rate,
         }
@@ -91,6 +87,11 @@ impl Bats {
     /// Get the sample rate.
     pub fn sample_rate(&self) -> f32 {
         self.sample_rate
+    }
+
+    /// Iterate over all plugins.
+    pub fn iter_plugins(&self) -> impl Iterator<Item = &Toof> {
+        self.plugin.iter().map(|p| &p.plugin)
     }
 }
 

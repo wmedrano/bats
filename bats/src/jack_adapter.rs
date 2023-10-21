@@ -35,7 +35,6 @@ impl ProcessHandler {
         );
         let virtual_ports = self.ports.port_names()?;
         Ok(Box::new(move || {
-            info!("Connecting virtual ports to physical ports.");
             let physical_audio_outs = connector_client.ports(
                 None,
                 Some(jack::AudioIn.jack_port_type()),
@@ -46,6 +45,11 @@ impl ProcessHandler {
                 .iter()
                 .zip(physical_audio_outs.iter())
             {
+                let p = connector_client.port_by_name(i.as_str()).unwrap();
+                if p.is_connected_to(o.as_str()).unwrap_or(false) {
+                    continue;
+                }
+                info!("Connecting audio port {} to {}.", i, o);
                 if let Err(err) = connector_client.connect_ports_by_name(i.as_str(), o.as_str()) {
                     warn!("Failed to connect audio output: {}", err);
                 }
@@ -56,6 +60,16 @@ impl ProcessHandler {
                 jack::PortFlags::IS_TERMINAL | jack::PortFlags::IS_OUTPUT,
             );
             for i in physical_midi_in {
+                let p = connector_client
+                    .port_by_name(&virtual_ports.midi_input)
+                    .unwrap();
+                if p.is_connected_to(&i).unwrap_or(false) {
+                    continue;
+                }
+                info!(
+                    "Connecting midi port {} to {}.",
+                    i, virtual_ports.midi_input
+                );
                 if let Err(err) =
                     connector_client.connect_ports_by_name(&i, &virtual_ports.midi_input)
                 {

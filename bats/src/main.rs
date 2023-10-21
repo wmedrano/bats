@@ -25,14 +25,33 @@ fn main() -> Result<()> {
     info!("Started JACK client {:?}.", client);
     info!("JACK status is {:?}", status);
 
-    let mut plugin_names = Vec::new();
+    let bats = make_bats(&client, args.load_initial_plugin);
+    let plugin_names = bats.iter_plugins().map(|p| p.name()).collect();
+    let process_handler = jack_adapter::ProcessHandler::new(&client, bats)?;
+    let maybe_connector = maybe_make_connector(&process_handler, args.auto_connect_ports);
+    let client = client.activate_async((), process_handler)?;
+    spawn_connector_daemon(maybe_connector);
+
+    info!("Creating UI with plugins: {:?}", plugin_names);
+    bats_ui::Ui::new(plugin_names)?.run()?;
+    info!("Exiting bats!");
+    client.deactivate()?;
+    Ok(())
+}
+
+fn make_bats(client: &jack::Client, load_initial_plugin: bool) -> Bats {
     let mut bats = Bats::new(client.sample_rate() as f32, client.buffer_size() as usize);
-    if args.load_initial_plugin {
-        plugin_names.push(Toof::NAME.to_string());
+    if load_initial_plugin {
         bats.add_plugin(Toof::new(bats.sample_rate()));
     }
-    let process_handler = jack_adapter::ProcessHandler::new(&client, bats)?;
-    let maybe_connector = if args.auto_connect_ports {
+    bats
+}
+
+fn maybe_make_connector(
+    process_handler: &jack_adapter::ProcessHandler,
+    enable_connector: bool,
+) -> Option<Box<dyn Send + FnMut()>> {
+    if enable_connector {
         Some(match process_handler.connector() {
             Ok(f) => f,
             Err(err) => {
@@ -42,18 +61,17 @@ fn main() -> Result<()> {
         })
     } else {
         None
-    };
+    }
+}
 
-    let client = client.activate_async((), process_handler)?;
-    if let Some(mut connector) = maybe_connector {
+fn spawn_connector_daemon(connector: Option<Box<dyn Send + FnMut()>>) {
+    if let Some(mut connector) = connector {
         std::thread::spawn(move || {
             std::thread::sleep(std::time::Duration::from_secs(1));
-            connector();
+            loop {
+                connector();
+                std::thread::sleep(std::time::Duration::from_secs(5));
+            }
         });
     }
-
-    bats_ui::Ui::new(plugin_names)?.run()?;
-    info!("Exiting bats!");
-    client.deactivate()?;
-    Ok(())
 }

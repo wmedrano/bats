@@ -25,15 +25,17 @@ struct ToofVoice {
 }
 
 impl BatsInstrument for Toof {
-    /// The name of the plugin.
-    const NAME: &'static str = "toof";
-
     /// Create a new Toof plugin with the given sample rate.
     fn new(sample_rate: f32) -> Toof {
         Toof {
             seconds_per_sample: 1.0 / sample_rate,
             voices: Vec::with_capacity(128),
         }
+    }
+
+    /// The name of the plugin.
+    fn name(&self) -> &'static str {
+        "toof"
     }
 
     /// Handle midi processing and output audio signal to `left_out`
