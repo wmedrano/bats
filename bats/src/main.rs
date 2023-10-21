@@ -1,4 +1,8 @@
 use anyhow::Result;
+use bats_lib::{
+    plugin::{toof::Toof, BatsInstrument},
+    Bats,
+};
 use clap::Parser;
 use log::{error, info};
 
@@ -21,7 +25,11 @@ fn main() -> Result<()> {
     info!("Started JACK client {:?}.", client);
     info!("JACK status is {:?}", status);
 
-    let process_handler = jack_adapter::ProcessHandler::new(&client)?;
+    let mut bats = Bats::new(client.sample_rate() as f32, client.buffer_size() as usize);
+    if args.load_initial_plugin {
+        bats.add_plugin(Toof::new(bats.sample_rate()));
+    }
+    let process_handler = jack_adapter::ProcessHandler::new(&client, bats)?;
     let maybe_connector = if args.auto_connect_ports {
         Some(match process_handler.connector() {
             Ok(f) => f,
@@ -33,6 +41,7 @@ fn main() -> Result<()> {
     } else {
         None
     };
+
     let client = client.activate_async((), process_handler)?;
     if let Some(mut connector) = maybe_connector {
         std::thread::spawn(move || {

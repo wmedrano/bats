@@ -1,3 +1,4 @@
+use bats_lib::plugin::{toof::Toof, BatsInstrument};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use wmidi::{Channel, MidiMessage, Note, U7};
 
@@ -30,6 +31,7 @@ fn bats_benchmark(c: &mut Criterion) {
     for buffer_size in BUFFER_SIZES {
         c.bench_function(&format!("bats_with_plugins_{buffer_size}"), |b| {
             let mut bats = black_box(bats_lib::Bats::new(DEFAULT_SAMPLE_RATE, buffer_size));
+            bats.add_plugin(Toof::new(DEFAULT_SAMPLE_RATE));
             let (mut left, mut right) = make_buffers(buffer_size);
             let midi = black_box([
                 (0, PRESS_C4.clone()),
@@ -62,7 +64,7 @@ fn metronome_benchmark(c: &mut Criterion) {
 fn toof_benchmark(c: &mut Criterion) {
     for buffer_size in BUFFER_SIZES {
         c.bench_function(&format!("toof_{buffer_size}"), |b| {
-            let mut bats = bats_lib::Bats::new(DEFAULT_SAMPLE_RATE, buffer_size);
+            let mut toof = Toof::new(DEFAULT_SAMPLE_RATE);
             let (mut left, mut right) = make_buffers(buffer_size);
             let midi = black_box([
                 (0, PRESS_C4.clone()),
@@ -72,7 +74,7 @@ fn toof_benchmark(c: &mut Criterion) {
             ]);
             let midi_ref = black_box(&midi);
             b.iter(move || {
-                bats.process(midi_ref, &mut left, &mut right);
+                toof.process(midi_ref, &mut left, &mut right);
             })
         });
     }

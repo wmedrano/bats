@@ -16,8 +16,7 @@ pub struct ProcessHandler {
 
 impl ProcessHandler {
     /// Create a new `ProcessHandler` with ports registered from `c`.
-    pub fn new(c: &jack::Client) -> Result<ProcessHandler> {
-        let bats = Bats::new(c.sample_rate() as f32, c.buffer_size() as usize);
+    pub fn new(c: &jack::Client, bats: Bats) -> Result<ProcessHandler> {
         Ok(ProcessHandler {
             ports: Ports::new(c)?,
             bats,

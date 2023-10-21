@@ -20,6 +20,10 @@ pub struct Bats {
     transport: Vec<Position>,
     /// The active plugins.
     plugin: Vec<PluginWithBuffer>,
+    /// The buffer size.
+    buffer_size: usize,
+    /// The sample rate.
+    sample_rate: f32,
 }
 
 /// An plugin with output buffers.
@@ -45,7 +49,18 @@ impl Bats {
                 left: vec![0f32; buffer_size],
                 right: vec![0f32; buffer_size],
             }],
+            buffer_size,
+            sample_rate,
         }
+    }
+
+    /// Add a new plugin.
+    pub fn add_plugin(&mut self, plugin: Toof) {
+        self.plugin.push(PluginWithBuffer {
+            plugin,
+            left: vec![0f32; self.buffer_size],
+            right: vec![0f32; self.buffer_size],
+        });
     }
 
     /// Process midi data and output audio.
@@ -71,6 +86,11 @@ impl Bats {
             mix(left, &plugin.left, 0.5);
             mix(right, &plugin.right, 0.5);
         }
+    }
+
+    /// Get the sample rate.
+    pub fn sample_rate(&self) -> f32 {
+        self.sample_rate
     }
 }
 
