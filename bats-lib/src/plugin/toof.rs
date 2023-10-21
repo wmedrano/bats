@@ -25,6 +25,9 @@ struct ToofVoice {
 }
 
 impl BatsInstrument for Toof {
+    /// The name of the plugin.
+    const NAME: &'static str = "toof";
+
     /// Create a new Toof plugin with the given sample rate.
     fn new(sample_rate: f32) -> Toof {
         Toof {

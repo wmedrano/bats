@@ -47,5 +47,7 @@ jobs:
         steps:
             - name: Checkout repository
               uses: actions/checkout@v3
+            - name: Build Benchmark
+              run: cargo bench -p bats-lib --no-run
             - name: Benchmark
               run: cargo bench -p bats-lib

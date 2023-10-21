@@ -1,22 +1,13 @@
 use anyhow::{anyhow, Result};
+use colors::ColorScheme;
+use log::info;
 use sdl2::{
-    event::Event, keyboard::Keycode, pixels::Color, render::Canvas, video::Window, EventPump,
+    event::Event, keyboard::Keycode, render::Canvas, ttf::FontStyle, video::Window, EventPump,
 };
+use text::TextRenderer;
 
-/// Holds colors to form a cohesive color scheme.
-#[derive(Copy, Clone, Debug)]
-pub struct ColorScheme {
-    /// The background color.
-    background: Color,
-}
-
-impl Default for ColorScheme {
-    fn default() -> ColorScheme {
-        ColorScheme {
-            background: Color::RGB(0, 0, 0),
-        }
-    }
-}
+pub mod colors;
+pub mod text;
 
 /// Options the user has requested for the window.
 #[derive(Debug, PartialEq)]
@@ -36,15 +27,21 @@ pub struct Ui {
     event_pump: EventPump,
     /// The color scheme to use.
     color_scheme: ColorScheme,
+    /// The text renderer.
+    text_renderer: TextRenderer,
+    /// The name of the current plugins.
+    plugin_names: Vec<String>,
+    /// The frame number.
+    frame_number: usize,
 }
 
 impl Ui {
     /// Create a new `Ui`.
-    pub fn new() -> Result<Ui> {
+    pub fn new(plugin_names: Vec<String>) -> Result<Ui> {
         let sdl_context = sdl2::init().map_err(anyhow::Error::msg)?;
         let video_subsystem = sdl_context.video().map_err(anyhow::Error::msg)?;
         let window = video_subsystem
-            .window("bats", 640, 320)
+            .window("bats", 320, 240)
             .opengl()
             .build()
             .map_err(anyhow::Error::msg)?;
@@ -56,10 +53,15 @@ impl Ui {
             .map_err(anyhow::Error::msg)?;
         let event_iter = sdl_context.event_pump().map_err(anyhow::Error::msg)?;
         let color_scheme = ColorScheme::default();
+        let text_renderer = TextRenderer::new(&canvas)?;
+        info!("UI initialized.");
         Ok(Ui {
             canvas,
             event_pump: event_iter,
             color_scheme,
+            text_renderer,
+            plugin_names,
+            frame_number: 0,
         })
     }
 
@@ -67,17 +69,10 @@ impl Ui {
     /// requests an exit.
     pub fn run(&mut self) -> Result<()> {
         while self.handle_events() == ProgramRequest::Continue {
-            self.render();
+            self.frame_number += 1;
+            self.render(self.frame_number);
         }
         Ok(())
-    }
-
-    /// Render a new frame and present it. It should be automatically
-    /// synchronized and frame limitted.
-    fn render(&mut self) {
-        self.canvas.set_draw_color(self.color_scheme.background);
-        self.canvas.clear();
-        self.canvas.present();
     }
 
     /// Handle all events in the queue.
@@ -96,6 +91,41 @@ impl Ui {
             }
         }
         ProgramRequest::Continue
+    }
+
+    /// Render a new frame and present it. It should be automatically
+    /// synchronized and frame limitted.
+    fn render(&mut self, frame_number: usize) {
+        self.canvas.set_draw_color(self.color_scheme.background);
+        self.canvas.clear();
+
+        self.text_renderer.set_style(FontStyle::BOLD);
+        let (_, height) = self
+            .text_renderer
+            .render(
+                &mut self.canvas,
+                "active plugins".to_string(),
+                self.color_scheme.foreground,
+                (0, 0),
+            )
+            .unwrap();
+        self.text_renderer.set_style(FontStyle::empty());
+        for (idx, plugin_name) in self.plugin_names.iter().enumerate() {
+            let y = (idx + 1) as i32 * height as i32;
+            self.text_renderer
+                .render(
+                    &mut self.canvas,
+                    plugin_name.clone(),
+                    self.color_scheme.foreground,
+                    (16, y),
+                )
+                .unwrap();
+        }
+        if frame_number % 256 == 0 {
+            self.text_renderer.clear_unused_cache();
+        }
+
+        self.canvas.present();
     }
 }
 

@@ -83,8 +83,8 @@ impl Bats {
             plugin
                 .plugin
                 .process(midi, &mut plugin.left, &mut plugin.right);
-            mix(left, &plugin.left, 0.5);
-            mix(right, &plugin.right, 0.5);
+            mix(left, &plugin.left, 0.25);
+            mix(right, &plugin.right, 0.25);
         }
     }
 

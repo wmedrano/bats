@@ -25,8 +25,10 @@ fn main() -> Result<()> {
     info!("Started JACK client {:?}.", client);
     info!("JACK status is {:?}", status);
 
+    let mut plugin_names = Vec::new();
     let mut bats = Bats::new(client.sample_rate() as f32, client.buffer_size() as usize);
     if args.load_initial_plugin {
+        plugin_names.push(Toof::NAME.to_string());
         bats.add_plugin(Toof::new(bats.sample_rate()));
     }
     let process_handler = jack_adapter::ProcessHandler::new(&client, bats)?;
@@ -50,7 +52,7 @@ fn main() -> Result<()> {
         });
     }
 
-    bats_ui::Ui::new()?.run()?;
+    bats_ui::Ui::new(plugin_names)?.run()?;
     info!("Exiting bats!");
     client.deactivate()?;
     Ok(())
