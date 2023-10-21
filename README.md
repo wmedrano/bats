@@ -2,8 +2,12 @@
 
 Bats is a free and open source (WIP) groovebox.
 
-## Tasks
+## Plugin
 
-* Create GUI.
-* Make metronome tweakable.
-* Create a plugin.
+### Toof
+
+Sawtooth wave instrument.
+
+### TODO Scraps
+
+Sampler.

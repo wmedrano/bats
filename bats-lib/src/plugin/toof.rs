@@ -13,7 +13,7 @@ pub struct Toof {
 
 /// A single voice for the Toof plugin. Each voice contains a single
 /// note.
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 struct ToofVoice {
     /// The midi note for the voice.
     note: Note,
