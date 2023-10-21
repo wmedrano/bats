@@ -3,9 +3,7 @@ use bats_lib::command::{Command, CommandSender};
 use colors::ColorScheme;
 use frame_counter::FrameCounter;
 use log::info;
-use sdl2::{
-    event::Event, keyboard::Keycode, render::Canvas, sys::KeyCode, video::Window, EventPump,
-};
+use sdl2::{event::Event, keyboard::Keycode, render::Canvas, video::Window, EventPump};
 use text::TextRenderer;
 
 pub mod colors;

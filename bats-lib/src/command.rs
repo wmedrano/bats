@@ -45,12 +45,12 @@ impl CommandReceiver {
 
 impl Command {
     /// The command to execute. It returns the command to undo the current command.
-    pub fn execute(self, b: &mut Bats) -> Option<Command> {
+    pub fn execute(self, b: &mut Bats) -> Command {
         match self {
             Command::SetMetronomeVolume(v) => {
                 let undo = Command::SetMetronomeVolume(b.metronome_volume);
                 b.metronome_volume = v;
-                Some(undo)
+                undo
             }
         }
     }
@@ -65,7 +65,7 @@ mod tests {
         let mut b = Bats::new(44100.0, 64);
         b.metronome_volume = 1.0;
 
-        let undo = Command::SetMetronomeVolume(0.5);
+        let undo = Command::SetMetronomeVolume(0.5).execute(&mut b);
         assert_eq!(b.metronome_volume, 0.5);
         assert_eq!(undo, Command::SetMetronomeVolume(1.0));
     }
