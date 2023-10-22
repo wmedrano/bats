@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use bats_lib::command::{Command, CommandSender};
+use bats_async::{Command, CommandSender};
 use colors::ColorScheme;
 use frame_counter::FrameCounter;
 use log::info;
@@ -91,11 +91,11 @@ impl Ui {
                     keycode: Some(Keycode::Escape),
                     ..
                 } => return ProgramRequest::Exit,
-                Event::TextInput { text, .. } => match text.as_str() {
-                    "-" => self.commands.send(Command::SetMetronomeVolume(0.0)),
-                    "+" => self.commands.send(Command::SetMetronomeVolume(0.5)),
-                    _ => (),
-                },
+                Event::TextInput { text, .. } => {
+                    if let "m" = text.as_str() {
+                        self.commands.send(Command::ToggleMetronome)
+                    }
+                }
                 _ => (),
             }
         }

@@ -1,12 +1,13 @@
+use bats_lib::Bats;
 use crossbeam_channel::{Receiver, Sender};
 
-use crate::Bats;
+const DEFAULT_METRONOME_VOLUME: f32 = 0.8;
 
 /// Contains commands for bats.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Command {
-    /// Set the metronome volume.
-    SetMetronomeVolume(f32),
+    /// Toggle the metrenome.
+    ToggleMetronome,
 }
 
 /// Send commands to a bats instance.
@@ -47,10 +48,13 @@ impl Command {
     /// The command to execute. It returns the command to undo the current command.
     pub fn execute(self, b: &mut Bats) -> Command {
         match self {
-            Command::SetMetronomeVolume(v) => {
-                let undo = Command::SetMetronomeVolume(b.metronome_volume);
-                b.metronome_volume = v;
-                undo
+            Command::ToggleMetronome => {
+                if b.metronome_volume > 0.0 {
+                    b.metronome_volume = 0.0;
+                } else {
+                    b.metronome_volume = DEFAULT_METRONOME_VOLUME;
+                }
+                Command::ToggleMetronome
             }
         }
     }
@@ -61,12 +65,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn set_metronome_volume_sets_volume() {
+    fn toggle_metronome_volume_toggles_volume() {
         let mut b = Bats::new(44100.0, 64);
-        b.metronome_volume = 1.0;
+        b.metronome_volume = DEFAULT_METRONOME_VOLUME;
 
-        let undo = Command::SetMetronomeVolume(0.5).execute(&mut b);
-        assert_eq!(b.metronome_volume, 0.5);
-        assert_eq!(undo, Command::SetMetronomeVolume(1.0));
+        let undo = Command::ToggleMetronome.execute(&mut b);
+        assert_eq!(b.metronome_volume, 0.0);
+        assert_eq!(undo, Command::ToggleMetronome);
+
+        let undo = Command::ToggleMetronome.execute(&mut b);
+        assert_eq!(b.metronome_volume, DEFAULT_METRONOME_VOLUME);
+        assert_eq!(undo, Command::ToggleMetronome);
     }
 }

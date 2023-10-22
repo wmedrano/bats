@@ -1,8 +1,6 @@
 use anyhow::Result;
-use bats_lib::{
-    command::{new_async_commander, CommandReceiver, CommandSender},
-    Bats,
-};
+use bats_async::{new_async_commander, CommandReceiver, CommandSender};
+use bats_lib::Bats;
 use jack::PortSpec;
 use log::{info, warn};
 
