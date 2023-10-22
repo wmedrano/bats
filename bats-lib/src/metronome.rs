@@ -1,3 +1,5 @@
+use bats_dsp::SampleRate;
+
 use crate::position::Position;
 
 /// Tracks position according to the specified BPM.
@@ -10,7 +12,7 @@ pub struct Metronome {
 
 impl Metronome {
     /// Create a new metronome with the given sample rate and beats per minute.
-    pub fn new(sample_rate: f32, bpm: f32) -> Metronome {
+    pub fn new(sample_rate: SampleRate, bpm: f32) -> Metronome {
         let mut m = Metronome {
             bpm,
             position: Position::default(),
@@ -21,11 +23,13 @@ impl Metronome {
     }
 
     /// Set the beats per minute for a metronome.
-    pub fn set_bpm(&mut self, sample_rate: f32, bpm: f32) {
+    pub fn set_bpm(&mut self, sample_rate: SampleRate, bpm: f32) {
         self.bpm = bpm;
-        let seconds_per_sample = 1.0 / sample_rate as f64;
         let beats_per_second = bpm / 60.0;
-        self.position_per_sample = Position::new(0, beats_per_second as f64 * seconds_per_sample);
+        self.position_per_sample = Position::new(
+            0,
+            beats_per_second as f64 * sample_rate.seconds_per_sample() as f64,
+        );
     }
 
     /// Get the next position from the metronome.
@@ -56,7 +60,7 @@ mod tests {
     #[test]
     fn metronome_produces_beat_at_proper_time() {
         let bpm = 4.0 * 60.0; // 4 beats per second.
-        let m = Metronome::new(16.0, bpm);
+        let m = Metronome::new(SampleRate::new(16.0), bpm);
         assert_eq!(
             m.take(9).collect::<Vec<Position>>(),
             vec![

@@ -1,3 +1,5 @@
+use crate::SampleRate;
+
 /// A classic Moog low pass filter.
 ///
 /// Credit: Implementation is derived from
@@ -22,7 +24,7 @@ impl MoogFilter {
     const DEFAULT_RESONANCE: f32 = 0.1;
 
     /// Create a new `MoogFilter`.
-    pub fn new(sample_rate: f32) -> MoogFilter {
+    pub fn new(sample_rate: SampleRate) -> MoogFilter {
         let mut f = MoogFilter {
             cutoff: 0.0,
             resonance: 0.0,
@@ -42,8 +44,8 @@ impl MoogFilter {
     }
 
     /// Set the cutoff frequency and resonance.
-    pub fn set_cutoff(&mut self, sample_rate: f32, cutoff_frequency: f32, resonance: f32) {
-        self.cutoff = 2.0 * cutoff_frequency / sample_rate;
+    pub fn set_cutoff(&mut self, sample_rate: SampleRate, cutoff_frequency: f32, resonance: f32) {
+        self.cutoff = 2.0 * cutoff_frequency * sample_rate.seconds_per_sample();
         self.p = self.cutoff * (1.8 - 0.8 * self.cutoff);
         self.k = 2.0 * (self.cutoff * std::f32::consts::PI * 0.5).sin() - 1.0;
         self.t1 = (1.0 - self.p) * 1.386249;

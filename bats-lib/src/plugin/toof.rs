@@ -28,10 +28,10 @@ struct ToofVoice {
 
 impl BatsInstrument for Toof {
     /// Create a new Toof plugin with the given sample rate.
-    fn new(sample_rate: f32) -> Toof {
+    fn new(sample_rate: SampleRate) -> Toof {
         Toof {
             bypass_filter: false,
-            sample_rate: SampleRate::new(sample_rate),
+            sample_rate,
             voices: Vec::with_capacity(128),
             filter: MoogFilter::new(sample_rate),
         }
@@ -103,7 +103,7 @@ mod tests {
 
     #[test]
     fn note_press_produces_audio() {
-        let mut s = Toof::new(44100.0);
+        let mut s = Toof::new(SampleRate::new(44100.0));
         let (left, right) = s.process_to_vec(44100, &[]);
         assert_eq!(left, vec![0f32; 44100]);
         assert_eq!(right, vec![0f32; 44100]);
@@ -120,7 +120,7 @@ mod tests {
     fn key_presses_produce_polyphonic_sound() {
         let note_a = (0, MidiMessage::NoteOn(Channel::Ch1, Note::A3, U7::MAX));
         let note_b = (0, MidiMessage::NoteOn(Channel::Ch1, Note::B4, U7::MAX));
-        let mut toof = Toof::new(44100.0);
+        let mut toof = Toof::new(SampleRate::new(44100.0));
         toof.bypass_filter = true;
         let (signal_a_left, signal_a_right) = toof.clone().process_to_vec(100, &[note_a.clone()]);
         let (signal_b_left, signal_b_right) = toof.clone().process_to_vec(100, &[note_b.clone()]);

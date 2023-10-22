@@ -1,3 +1,4 @@
+use bats_dsp::SampleRate;
 use metronome::Metronome;
 use plugin::{toof::Toof, BatsInstrument};
 use position::Position;
@@ -23,7 +24,7 @@ pub struct Bats {
     /// The buffer size.
     buffer_size: usize,
     /// The sample rate.
-    sample_rate: f32,
+    sample_rate: SampleRate,
 }
 
 /// An plugin with output buffers.
@@ -39,7 +40,7 @@ struct PluginWithBuffer {
 
 impl Bats {
     /// Create a new `Bats` object.
-    pub fn new(sample_rate: f32, buffer_size: usize) -> Bats {
+    pub fn new(sample_rate: SampleRate, buffer_size: usize) -> Bats {
         Bats {
             metronome: Metronome::new(sample_rate, 120.0),
             metronome_volume: 0.0,
@@ -85,7 +86,7 @@ impl Bats {
     }
 
     /// Get the sample rate.
-    pub fn sample_rate(&self) -> f32 {
+    pub fn sample_rate(&self) -> SampleRate {
         self.sample_rate
     }
 
@@ -142,7 +143,7 @@ mod tests {
     fn no_input_produces_silence() {
         let mut left = [1.0, 2.0, 3.0];
         let mut right = [4.0, 5.0, 6.0];
-        let mut b = Bats::new(44100.0, left.len());
+        let mut b = Bats::new(SampleRate::new(44100.0), left.len());
         b.process(&[], &mut left, &mut right);
         assert_eq!(left, [0.0, 0.0, 0.0]);
         assert_eq!(right, [0.0, 0.0, 0.0]);
@@ -152,7 +153,7 @@ mod tests {
     fn no_input_with_metronome_produces_metronome() {
         let mut left = [1.0, 2.0, 3.0];
         let mut right = [4.0, 5.0, 6.0];
-        let mut b = Bats::new(44100.0, left.len());
+        let mut b = Bats::new(SampleRate::new(44100.0), left.len());
         b.metronome_volume = 0.8;
         b.process(&[], &mut left, &mut right);
         assert_eq!(left, [0.8, 0.0, 0.0]);
@@ -163,9 +164,9 @@ mod tests {
     fn metronome_ticks_regularly() {
         let mut left = vec![0.0; 44100];
         let mut right = vec![0.0; 44100];
-        let mut bats = Bats::new(44100.0, 44100);
+        let mut bats = Bats::new(SampleRate::new(44100.0), 44100);
         bats.metronome_volume = 0.8;
-        bats.metronome.set_bpm(44100.0, 120.0);
+        bats.metronome.set_bpm(SampleRate::new(44100.0), 120.0);
         bats.process(&[], &mut left, &mut right);
         // At 120 BPM, it should tick twice in a second.
         assert_eq!(left.iter().filter(|v| 0.0 != **v).count(), 2);

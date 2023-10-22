@@ -69,11 +69,13 @@ impl Command {
 
 #[cfg(test)]
 mod tests {
+    use bats_dsp::SampleRate;
+
     use super::*;
 
     #[test]
     fn toggle_metronome_volume_toggles_volume() {
-        let mut b = Bats::new(44100.0, 64);
+        let mut b = Bats::new(SampleRate::new(44100.0), 64);
         b.metronome_volume = DEFAULT_METRONOME_VOLUME;
 
         let undo = Command::ToggleMetronome.execute(&mut b);
@@ -87,7 +89,7 @@ mod tests {
 
     #[test]
     fn metrenome_set_bpm() {
-        let mut b = Bats::new(44100.0, 64);
+        let mut b = Bats::new(SampleRate::new(44100.0), 64);
         b.metronome.set_bpm(b.sample_rate(), 100.0);
 
         let undo = Command::SetMetronomeBpm(90.0).execute(&mut b);

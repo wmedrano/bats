@@ -1,3 +1,4 @@
+use bats_dsp::SampleRate;
 use bats_lib::plugin::{toof::Toof, BatsInstrument};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use wmidi::{Channel, MidiMessage, Note, U7};
@@ -12,11 +13,11 @@ const RELEASE_A4: MidiMessage<'static> = MidiMessage::NoteOff(Channel::Ch1, Note
 fn bats_benchmark(c: &mut Criterion) {
     c.bench_function(&format!("bats_init"), |b| {
         b.iter(|| {
-            let _ = bats_lib::Bats::new(SAMPLE_RATE, BUFFER_SIZE);
+            let _ = bats_lib::Bats::new(SampleRate::new(SAMPLE_RATE), BUFFER_SIZE);
         })
     });
     c.bench_function(&format!("bats_empty"), |b| {
-        let mut bats = bats_lib::Bats::new(SAMPLE_RATE, BUFFER_SIZE);
+        let mut bats = bats_lib::Bats::new(SampleRate::new(SAMPLE_RATE), BUFFER_SIZE);
         let (mut left, mut right) = make_buffers(BUFFER_SIZE);
         let midi = black_box(&[]);
         b.iter(move || {
@@ -24,9 +25,12 @@ fn bats_benchmark(c: &mut Criterion) {
         })
     });
     c.bench_function(&format!("bats_with_plugins"), |b| {
-        let mut bats = black_box(bats_lib::Bats::new(SAMPLE_RATE, BUFFER_SIZE));
+        let mut bats = black_box(bats_lib::Bats::new(
+            SampleRate::new(SAMPLE_RATE),
+            BUFFER_SIZE,
+        ));
         for _ in 0..8 {
-            bats.add_plugin(Toof::new(SAMPLE_RATE));
+            bats.add_plugin(Toof::new(SampleRate::new(SAMPLE_RATE)));
         }
         let (mut left, mut right) = make_buffers(BUFFER_SIZE);
         let midi = black_box([
@@ -43,13 +47,19 @@ fn bats_benchmark(c: &mut Criterion) {
 fn metronome_benchmark(c: &mut Criterion) {
     c.bench_function(&format!("metronome_new"), |b| {
         b.iter(move || {
-            let mut metronome = black_box(bats_lib::metronome::Metronome::new(SAMPLE_RATE, 120.0));
+            let mut metronome = black_box(bats_lib::metronome::Metronome::new(
+                SampleRate::new(SAMPLE_RATE),
+                120.0,
+            ));
             metronome.next_position()
         })
     });
 
     c.bench_function(&format!("metronome_tick"), |b| {
-        let mut metronome = black_box(bats_lib::metronome::Metronome::new(SAMPLE_RATE, 120.0));
+        let mut metronome = black_box(bats_lib::metronome::Metronome::new(
+            SampleRate::new(SAMPLE_RATE),
+            120.0,
+        ));
         b.iter(move || {
             for _ in 0..BUFFER_SIZE {
                 metronome.next_position();
@@ -60,7 +70,7 @@ fn metronome_benchmark(c: &mut Criterion) {
 
 fn toof_benchmark(c: &mut Criterion) {
     c.bench_function(&format!("toof_process"), |b| {
-        let mut toof = black_box(Toof::new(SAMPLE_RATE));
+        let mut toof = black_box(Toof::new(SampleRate::new(SAMPLE_RATE)));
         let (mut left, mut right) = make_buffers(BUFFER_SIZE);
         let midi = black_box([
             (0, PRESS_C4.clone()),
@@ -74,7 +84,7 @@ fn toof_benchmark(c: &mut Criterion) {
         })
     });
     c.bench_function(&format!("toof_process_no_filter"), |b| {
-        let mut toof = black_box(Toof::new(SAMPLE_RATE));
+        let mut toof = black_box(Toof::new(SampleRate::new(SAMPLE_RATE)));
         toof.bypass_filter = true;
         let (mut left, mut right) = make_buffers(BUFFER_SIZE);
         let midi = black_box([

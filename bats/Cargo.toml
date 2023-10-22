@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.75"
 bats-async = { path = "../bats-async" }
+bats-dsp = { path = "../bats-dsp" }
 bats-lib = { path = "../bats-lib" }
 bats-ui = { path = "../bats-ui" }
 clap = { version = "4.4", features = ["derive"] }

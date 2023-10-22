@@ -64,11 +64,12 @@ impl TextRenderer {
         header: String,
         items: impl Iterator<Item = String>,
     ) -> Result<()> {
+        let pad = 4;
         self.set_style(FontStyle::BOLD);
-        let (_, height) = self.render(dst, header, color, (0, 0))?;
+        let (_, height) = self.render(dst, header, color, (pad, pad))?;
         self.set_style(FontStyle::empty());
         for (idx, item) in items.enumerate() {
-            let x_y = (16, height as i32 * (idx + 1) as i32);
+            let x_y = (32 + pad, height as i32 * (idx + 1) as i32 + pad);
             self.render(dst, item, color, x_y)?;
         }
         Ok(())

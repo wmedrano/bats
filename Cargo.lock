@@ -94,6 +94,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bats-async",
+ "bats-dsp",
  "bats-lib",
  "bats-ui",
  "clap 4.4.6",
@@ -107,6 +108,7 @@ dependencies = [
 name = "bats-async"
 version = "0.1.0"
 dependencies = [
+ "bats-dsp",
  "bats-lib",
  "crossbeam-channel",
 ]

@@ -1,4 +1,5 @@
 use anyhow::Result;
+use bats_dsp::SampleRate;
 use bats_lib::{
     plugin::{toof::Toof, BatsInstrument},
     Bats,
@@ -40,7 +41,8 @@ fn main() -> Result<()> {
 }
 
 fn make_bats(client: &jack::Client, load_initial_plugin: bool) -> Bats {
-    let mut bats = Bats::new(client.sample_rate() as f32, client.buffer_size() as usize);
+    let sample_rate = SampleRate::new(client.sample_rate() as f32);
+    let mut bats = Bats::new(sample_rate, client.buffer_size() as usize);
     if load_initial_plugin {
         bats.add_plugin(Toof::new(bats.sample_rate()));
     }
