@@ -10,13 +10,11 @@ const PRESS_A4: MidiMessage<'static> = MidiMessage::NoteOn(Channel::Ch1, Note::A
 const RELEASE_A4: MidiMessage<'static> = MidiMessage::NoteOff(Channel::Ch1, Note::A4, U7::MIN);
 
 fn bats_benchmark(c: &mut Criterion) {
-    {
-        c.bench_function(&format!("bats_init"), |b| {
-            b.iter(|| {
-                let _ = bats_lib::Bats::new(SAMPLE_RATE, BUFFER_SIZE);
-            })
-        });
-    }
+    c.bench_function(&format!("bats_init"), |b| {
+        b.iter(|| {
+            let _ = bats_lib::Bats::new(SAMPLE_RATE, BUFFER_SIZE);
+        })
+    });
     c.bench_function(&format!("bats_empty"), |b| {
         let mut bats = bats_lib::Bats::new(SAMPLE_RATE, BUFFER_SIZE);
         let (mut left, mut right) = make_buffers(BUFFER_SIZE);
@@ -27,7 +25,9 @@ fn bats_benchmark(c: &mut Criterion) {
     });
     c.bench_function(&format!("bats_with_plugins"), |b| {
         let mut bats = black_box(bats_lib::Bats::new(SAMPLE_RATE, BUFFER_SIZE));
-        bats.add_plugin(Toof::new(SAMPLE_RATE));
+        for _ in 0..8 {
+            bats.add_plugin(Toof::new(SAMPLE_RATE));
+        }
         let (mut left, mut right) = make_buffers(BUFFER_SIZE);
         let midi = black_box([
             (0, PRESS_C4.clone()),
@@ -60,7 +60,7 @@ fn metronome_benchmark(c: &mut Criterion) {
 
 fn toof_benchmark(c: &mut Criterion) {
     c.bench_function(&format!("toof_process"), |b| {
-        let mut toof = Toof::new(SAMPLE_RATE);
+        let mut toof = black_box(Toof::new(SAMPLE_RATE));
         let (mut left, mut right) = make_buffers(BUFFER_SIZE);
         let midi = black_box([
             (0, PRESS_C4.clone()),
@@ -74,7 +74,7 @@ fn toof_benchmark(c: &mut Criterion) {
         })
     });
     c.bench_function(&format!("toof_process_no_filter"), |b| {
-        let mut toof = Toof::new(SAMPLE_RATE);
+        let mut toof = black_box(Toof::new(SAMPLE_RATE));
         toof.bypass_filter = true;
         let (mut left, mut right) = make_buffers(BUFFER_SIZE);
         let midi = black_box([

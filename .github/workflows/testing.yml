@@ -48,6 +48,8 @@ jobs:
             - name: Checkout repository
               uses: actions/checkout@v3
             - name: Build Benchmark
-              run: cargo bench -p bats-lib --no-run
-            - name: Benchmark
+              run: cargo bench -p bats-lib -p bats-dsp --no-run
+            - name: Benchmark Lib
               run: cargo bench -p bats-lib -- --color always
+            - name: Benchmark DSP
+              run: cargo bench -p bats-dsp -- --color always
