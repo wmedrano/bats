@@ -1,4 +1,4 @@
-use bats_dsp::moog_filter::MoogFilter;
+use bats_dsp::{moog_filter::MoogFilter, sawtooth::Sawtooth, SampleRate};
 use wmidi::{MidiMessage, Note, U7};
 
 use super::BatsInstrument;
@@ -8,8 +8,8 @@ use super::BatsInstrument;
 pub struct Toof {
     /// If the filter is disabled.
     pub bypass_filter: bool,
-    /// The number of seconds per sample. This is `1.0 / sample_rate`.
-    seconds_per_sample: f32,
+    /// The sample rate.
+    sample_rate: SampleRate,
     /// The active voices for toof.
     voices: Vec<ToofVoice>,
     /// The low pass filter.
@@ -22,21 +22,18 @@ pub struct Toof {
 struct ToofVoice {
     /// The midi note for the voice.
     note: Note,
-    /// The amplitude delta per sample. This is proportional to the
-    /// frequency.
-    amplitude_per_sample: f32,
-    /// The current amplitude.
-    amplitude: f32,
+    /// The sawtooth wave.
+    wave: Sawtooth,
 }
 
 impl BatsInstrument for Toof {
     /// Create a new Toof plugin with the given sample rate.
     fn new(sample_rate: f32) -> Toof {
         Toof {
-            seconds_per_sample: 1.0 / sample_rate,
+            bypass_filter: false,
+            sample_rate: SampleRate::new(sample_rate),
             voices: Vec::with_capacity(128),
             filter: MoogFilter::new(sample_rate),
-            bypass_filter: false,
         }
     }
 
@@ -66,7 +63,7 @@ impl Toof {
             while let Some((_, msg)) = midi_in.next_if(|(frame, _)| *frame <= idx as u32) {
                 self.handle_midi(msg);
             }
-            let mut v = self.voices.iter_mut().map(|v| v.next_sample()).sum();
+            let mut v = self.voices.iter_mut().map(|v| v.wave.next_sample()).sum();
             if !self.bypass_filter {
                 v = self.filter.process(v);
             }
@@ -81,8 +78,7 @@ impl Toof {
                 self.voices.retain(|v| v.note != *note);
             }
             MidiMessage::NoteOn(_, note, _) => {
-                self.voices
-                    .push(ToofVoice::new(self.seconds_per_sample, *note));
+                self.voices.push(ToofVoice::new(self.sample_rate, *note));
             }
             _ => (),
         }
@@ -91,25 +87,11 @@ impl Toof {
 
 impl ToofVoice {
     /// Create a new Toof voice.
-    fn new(seconds_per_sample: f32, note: Note) -> ToofVoice {
-        let amplitude_per_cycle = 2.0;
-        let cycles_per_second = note.to_freq_f32();
-        let amplitude_per_sample = amplitude_per_cycle * cycles_per_second * seconds_per_sample;
+    fn new(sample_rate: SampleRate, note: Note) -> ToofVoice {
         ToofVoice {
             note,
-            amplitude_per_sample,
-            amplitude: 0.0,
+            wave: Sawtooth::new(sample_rate, note.to_freq_f32()),
         }
-    }
-
-    /// Get the next sample value for this Toof voice.
-    fn next_sample(&mut self) -> f32 {
-        let ret = self.amplitude;
-        self.amplitude += self.amplitude_per_sample;
-        if self.amplitude > 1.0 {
-            self.amplitude -= 2.0;
-        }
-        ret
     }
 }
 

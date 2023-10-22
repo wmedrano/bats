@@ -5,6 +5,10 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[profile.release]
+# Required for profiling with tools like `cargo flamegraph`.
+debug = true
+
 [dependencies]
 anyhow = "1.0.75"
 bats-async = { path = "../bats-async" }
