@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use bats_async::{Command, CommandSender};
 use colors::ColorScheme;
 use frame_counter::FrameCounter;
 use log::info;
@@ -33,11 +34,13 @@ pub struct Ui {
     plugin_names: Vec<&'static str>,
     /// Frame stats.
     frame_counter: FrameCounter,
+    /// Send commands to the bats processor.
+    commands: CommandSender,
 }
 
 impl Ui {
     /// Create a new `Ui`.
-    pub fn new(plugin_names: Vec<&'static str>) -> Result<Ui> {
+    pub fn new(commands: CommandSender, plugin_names: Vec<&'static str>) -> Result<Ui> {
         let sdl_context = sdl2::init().map_err(anyhow::Error::msg)?;
         let video_subsystem = sdl_context.video().map_err(anyhow::Error::msg)?;
         let window = video_subsystem
@@ -62,6 +65,7 @@ impl Ui {
             text_renderer,
             plugin_names,
             frame_counter: FrameCounter::new(),
+            commands,
         })
     }
 
@@ -87,6 +91,11 @@ impl Ui {
                     keycode: Some(Keycode::Escape),
                     ..
                 } => return ProgramRequest::Exit,
+                Event::TextInput { text, .. } => {
+                    if let "m" = text.as_str() {
+                        self.commands.send(Command::ToggleMetronome)
+                    }
+                }
                 _ => (),
             }
         }

@@ -12,7 +12,7 @@ pub struct Bats {
     /// The metronome.
     pub metronome: Metronome,
     /// The volume for the metronome.
-    metronome_volume: f32,
+    pub metronome_volume: f32,
     /// The positions for each sample.
     ///
     /// Note: The first entry in the slice represents the previous

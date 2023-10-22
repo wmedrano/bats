@@ -2,6 +2,8 @@
 resolver = "2"
 members = [
 	"bats",
+	"bats-async",
+	"bats-dsp",
 	"bats-lib",
 	"bats-ui"
 ]

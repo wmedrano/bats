@@ -30,7 +30,7 @@ impl FrameCounter {
         let new_fps = 1.0 / duration.as_secs_f64();
         let fps = 0.95 * self.fps + 0.05 * new_fps;
 
-        self.frames = self.frames + 1;
+        self.frames += self.frames;
         self.fps = fps;
         if self.frames % 100 == 0 {
             self.fps_text = format!("FPS: {:.0}", fps.round());
@@ -43,5 +43,11 @@ impl FrameCounter {
     /// Get the FPS as a text string.
     pub fn fps(&self) -> &str {
         &self.fps_text
+    }
+}
+
+impl Default for FrameCounter {
+    fn default() -> FrameCounter {
+        FrameCounter::new()
     }
 }
