@@ -47,6 +47,8 @@ jobs:
         steps:
             - name: Checkout repository
               uses: actions/checkout@v3
+            - name: Install GNU Plot
+              run: sudo apt install gnuplot
             - name: Build Benchmark
               run: cargo bench -p bats-lib -p bats-dsp --no-run
             - name: Benchmark Lib
