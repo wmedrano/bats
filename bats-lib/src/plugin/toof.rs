@@ -1,3 +1,4 @@
+use bats_dsp::moog_filter::MoogFilter;
 use wmidi::{MidiMessage, Note, U7};
 
 use super::BatsInstrument;
@@ -5,10 +6,14 @@ use super::BatsInstrument;
 /// A simple Sawtooth plugin.
 #[derive(Debug, Clone)]
 pub struct Toof {
+    /// If the filter is disabled.
+    pub bypass_filter: bool,
     /// The number of seconds per sample. This is `1.0 / sample_rate`.
     seconds_per_sample: f32,
     /// The active voices for toof.
     voices: Vec<ToofVoice>,
+    /// The low pass filter.
+    filter: MoogFilter,
 }
 
 /// A single voice for the Toof plugin. Each voice contains a single
@@ -30,6 +35,8 @@ impl BatsInstrument for Toof {
         Toof {
             seconds_per_sample: 1.0 / sample_rate,
             voices: Vec::with_capacity(128),
+            filter: MoogFilter::new(sample_rate),
+            bypass_filter: false,
         }
     }
 
@@ -59,7 +66,11 @@ impl Toof {
             while let Some((_, msg)) = midi_in.next_if(|(frame, _)| *frame <= idx as u32) {
                 self.handle_midi(msg);
             }
-            *out = self.voices.iter_mut().map(|v| v.next_sample()).sum();
+            let mut v = self.voices.iter_mut().map(|v| v.next_sample()).sum();
+            if !self.bypass_filter {
+                v = self.filter.process(v);
+            }
+            *out = v;
         }
     }
 
@@ -127,12 +138,12 @@ mod tests {
     fn key_presses_produce_polyphonic_sound() {
         let note_a = (0, MidiMessage::NoteOn(Channel::Ch1, Note::A3, U7::MAX));
         let note_b = (0, MidiMessage::NoteOn(Channel::Ch1, Note::B4, U7::MAX));
-        let (signal_a_left, signal_a_right) =
-            Toof::new(44100.0).process_to_vec(100, &[note_a.clone()]);
-        let (signal_b_left, signal_b_right) =
-            Toof::new(44100.0).process_to_vec(100, &[note_b.clone()]);
+        let mut toof = Toof::new(44100.0);
+        toof.bypass_filter = true;
+        let (signal_a_left, signal_a_right) = toof.clone().process_to_vec(100, &[note_a.clone()]);
+        let (signal_b_left, signal_b_right) = toof.clone().process_to_vec(100, &[note_b.clone()]);
         let (signal_summed_left, signal_summed_right) =
-            Toof::new(44100.0).process_to_vec(100, &[note_a, note_b]);
+            toof.clone().process_to_vec(100, &[note_a, note_b]);
         assert_eq!(
             signal_summed_left,
             signal_a_left

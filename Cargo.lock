@@ -112,9 +112,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "bats-dsp"
+version = "0.1.0"
+
+[[package]]
 name = "bats-lib"
 version = "0.1.0"
 dependencies = [
+ "bats-dsp",
  "criterion",
  "wmidi",
 ]
