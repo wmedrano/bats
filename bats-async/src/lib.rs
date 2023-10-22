@@ -8,6 +8,8 @@ const DEFAULT_METRONOME_VOLUME: f32 = 0.8;
 pub enum Command {
     /// Toggle the metrenome.
     ToggleMetronome,
+    /// Set the BPM of the metronome.
+    SetMetronomeBpm(f32),
 }
 
 /// Send commands to a bats instance.
@@ -56,6 +58,11 @@ impl Command {
                 }
                 Command::ToggleMetronome
             }
+            Command::SetMetronomeBpm(bpm) => {
+                let previous_bpm = b.metronome.bpm();
+                b.metronome.set_bpm(b.sample_rate(), bpm);
+                Command::SetMetronomeBpm(previous_bpm)
+            }
         }
     }
 }
@@ -76,5 +83,15 @@ mod tests {
         let undo = Command::ToggleMetronome.execute(&mut b);
         assert_eq!(b.metronome_volume, DEFAULT_METRONOME_VOLUME);
         assert_eq!(undo, Command::ToggleMetronome);
+    }
+
+    #[test]
+    fn metrenome_set_bpm() {
+        let mut b = Bats::new(44100.0, 64);
+        b.metronome.set_bpm(b.sample_rate(), 100.0);
+
+        let undo = Command::SetMetronomeBpm(90.0).execute(&mut b);
+        assert_eq!(b.metronome.bpm(), 90.0);
+        assert_eq!(undo, Command::SetMetronomeBpm(100.0));
     }
 }

@@ -3,6 +3,7 @@ use crate::position::Position;
 /// Tracks position according to the specified BPM.
 #[derive(Clone, Debug)]
 pub struct Metronome {
+    bpm: f32,
     position: Position,
     position_per_sample: Position,
 }
@@ -11,6 +12,7 @@ impl Metronome {
     /// Create a new metronome with the given sample rate and beats per minute.
     pub fn new(sample_rate: f32, bpm: f32) -> Metronome {
         let mut m = Metronome {
+            bpm,
             position: Position::default(),
             position_per_sample: Position::default(),
         };
@@ -20,6 +22,7 @@ impl Metronome {
 
     /// Set the beats per minute for a metronome.
     pub fn set_bpm(&mut self, sample_rate: f32, bpm: f32) {
+        self.bpm = bpm;
         let seconds_per_sample = 1.0 / sample_rate as f64;
         let beats_per_second = bpm / 60.0;
         self.position_per_sample = Position::new(0, beats_per_second as f64 * seconds_per_sample);
@@ -30,6 +33,11 @@ impl Metronome {
         let ret = self.position;
         self.position += self.position_per_sample;
         ret
+    }
+
+    /// Get the current bpm.
+    pub fn bpm(&self) -> f32 {
+        self.bpm
     }
 }
 

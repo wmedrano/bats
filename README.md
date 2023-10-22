@@ -2,12 +2,12 @@
 
 Bats is a free and open source (WIP) groovebox for Linux.
 
-## Key Bindings
+## Global Key Bindings
 
 | Key   | Action                           |
 |:------|:---------------------------------|
-| `ESC` | Exit.                            |
-| `m`   | Toggle the metronome on and off. |
+| `ESC` | Go to main menu.                 |
+| `M`   | Toggle the metronome on and off. |
 
 
 ## Plugins

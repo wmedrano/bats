@@ -1,11 +1,13 @@
 use anyhow::{anyhow, Result};
-use bats_async::{Command, CommandSender};
+use bats_async::CommandSender;
+use bats_state::BatsState;
 use colors::ColorScheme;
 use frame_counter::FrameCounter;
 use log::info;
 use sdl2::{event::Event, keyboard::Keycode, render::Canvas, video::Window, EventPump};
 use text::TextRenderer;
 
+pub mod bats_state;
 pub mod colors;
 pub mod frame_counter;
 pub mod text;
@@ -20,8 +22,21 @@ enum ProgramRequest {
     Exit,
 }
 
+/// The current page.
+#[derive(Copy, Clone, Debug)]
+enum Page {
+    /// The main menu.
+    MainMenu,
+    /// The plugins menu.
+    PluginsMenu,
+    /// The metronome.
+    Metronome,
+}
+
 /// Runs the Ui.
 pub struct Ui {
+    /// The current page.
+    page: Page,
     /// The canvas to render items onto.
     canvas: Canvas<Window>,
     /// An iterator over events.
@@ -30,12 +45,10 @@ pub struct Ui {
     color_scheme: ColorScheme,
     /// The text renderer.
     text_renderer: TextRenderer,
-    /// The name of the current plugins.
-    plugin_names: Vec<&'static str>,
     /// Frame stats.
     frame_counter: FrameCounter,
-    /// Send commands to the bats processor.
-    commands: CommandSender,
+    /// Contains bats related state information.
+    bats_state: BatsState,
 }
 
 impl Ui {
@@ -57,15 +70,16 @@ impl Ui {
         let event_iter = sdl_context.event_pump().map_err(anyhow::Error::msg)?;
         let color_scheme = ColorScheme::default();
         let text_renderer = TextRenderer::new(&canvas)?;
+        let bats_state = BatsState::new(commands, plugin_names);
         info!("UI initialized.");
         Ok(Ui {
+            page: Page::MainMenu,
             canvas,
             event_pump: event_iter,
             color_scheme,
             text_renderer,
-            plugin_names,
             frame_counter: FrameCounter::new(),
-            commands,
+            bats_state,
         })
     }
 
@@ -90,12 +104,16 @@ impl Ui {
                 Event::KeyDown {
                     keycode: Some(Keycode::Escape),
                     ..
-                } => return ProgramRequest::Exit,
-                Event::TextInput { text, .. } => {
-                    if let "m" = text.as_str() {
-                        self.commands.send(Command::ToggleMetronome)
-                    }
-                }
+                } => self.page = Page::MainMenu,
+                Event::TextInput { text, .. } => match (self.page, text.as_str()) {
+                    (_, "M") => self.bats_state.toggle_metronome(),
+                    (Page::MainMenu, "m") => self.page = Page::Metronome,
+                    (Page::MainMenu, "p") => self.page = Page::PluginsMenu,
+                    (Page::MainMenu, "q") => return ProgramRequest::Exit,
+                    (Page::Metronome, "+") => self.bats_state.set_bpm(self.bats_state.bpm() + 1.0),
+                    (Page::Metronome, "-") => self.bats_state.set_bpm(self.bats_state.bpm() - 1.0),
+                    _ => (),
+                },
                 _ => (),
             }
         }
@@ -107,14 +125,14 @@ impl Ui {
     fn render(&mut self, frame_number: usize) {
         self.canvas.set_draw_color(self.color_scheme.background);
         self.canvas.clear();
-        self.text_renderer
-            .render_menu(
-                &mut self.canvas,
-                self.color_scheme.foreground,
-                "active plugins".to_string(),
-                self.plugin_names.iter().map(|s| s.to_string()),
-            )
-            .unwrap();
+        if frame_number % 256 == 0 {
+            self.text_renderer.clear_unused_cache();
+        }
+        match self.page {
+            Page::MainMenu => self.render_main_menu(),
+            Page::PluginsMenu => self.render_plugins(),
+            Page::Metronome => self.render_metronome_menu(),
+        }
         self.text_renderer
             .render(
                 &mut self.canvas,
@@ -123,11 +141,49 @@ impl Ui {
                 (232, 220),
             )
             .unwrap();
-        if frame_number % 256 == 0 {
-            self.text_renderer.clear_unused_cache();
-        }
-
         self.canvas.present();
+    }
+
+    /// Render the main menu.
+    fn render_main_menu(&mut self) {
+        let items = ["m - Metronome", "p - Plugins", "q - Quit"];
+        self.text_renderer
+            .render_menu(
+                &mut self.canvas,
+                self.color_scheme.foreground,
+                "Main Menu".to_string(),
+                items.iter().map(|i| i.to_string()),
+            )
+            .unwrap();
+    }
+
+    /// Render the plugins menu.
+    fn render_plugins(&mut self) {
+        self.text_renderer
+            .render_menu(
+                &mut self.canvas,
+                self.color_scheme.foreground,
+                "active plugins".to_string(),
+                self.bats_state.plugin_names().map(|s| s.to_string()),
+            )
+            .unwrap();
+    }
+
+    /// Render the metronome menu.
+    fn render_metronome_menu(&mut self) {
+        let items = [
+            format!("BPM (+/-): {}", self.bats_state.bpm_text()),
+            "M - Toggle Metronome".to_string(),
+        ]
+        .into_iter();
+        self.text_renderer
+            .render_menu(
+                &mut self.canvas,
+                self.color_scheme.foreground,
+                "metronome".to_string(),
+                items,
+            )
+            .unwrap();
     }
 }
 
