@@ -35,7 +35,7 @@ impl TextRenderer {
     /// Create a new `TextRenderer`.
     pub fn new(c: &Canvas<Window>) -> Result<TextRenderer> {
         let font = ttf_context()
-            .load_font("assets/CourierPrime-Regular.ttf", 16)
+            .load_font("assets/FiraMono-Medium.ttf", 16)
             .map_err(anyhow::Error::msg)?;
         let texture_creator = c.texture_creator();
         Ok(TextRenderer {
