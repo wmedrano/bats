@@ -10,14 +10,31 @@ pub trait BatsInstrument {
     /// The name of the plugin.
     fn name(&self) -> &'static str;
 
+    /// Handle a midi message.
+    fn handle_midi(&mut self, msg: &wmidi::MidiMessage);
+
+    /// Produce the next samples in the frame.
+    fn process(&mut self) -> (f32, f32);
+
     /// Handle processing of `midi_in` and output to `left_out` and
     /// `right_out`.
-    fn process(
+    fn process_batch(
         &mut self,
         midi_in: &[(u32, wmidi::MidiMessage<'static>)],
         left_out: &mut [f32],
         right_out: &mut [f32],
-    );
+    ) {
+        let sample_count = left_out.len().min(right_out.len());
+        let mut midi_iter = midi_in.iter().peekable();
+        for i in 0..sample_count {
+            while let Some((_, msg)) = midi_iter.next_if(|(frame, _)| *frame <= i as u32) {
+                self.handle_midi(msg);
+            }
+            let (l, r) = self.process();
+            left_out[i] = l;
+            right_out[i] = r;
+        }
+    }
 
     /// Handle processing of `midi_in` and return the results. This is
     /// often less efficient but is included for less performance
@@ -28,7 +45,7 @@ pub trait BatsInstrument {
         midi_in: &[(u32, wmidi::MidiMessage<'static>)],
     ) -> (Vec<f32>, Vec<f32>) {
         let (mut left, mut right) = (vec![0f32; sample_count], vec![0f32; sample_count]);
-        self.process(midi_in, &mut left, &mut right);
+        self.process_batch(midi_in, &mut left, &mut right);
         (left, right)
     }
 }

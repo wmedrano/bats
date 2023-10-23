@@ -79,7 +79,7 @@ impl Bats {
         for plugin in self.plugin.iter_mut() {
             plugin
                 .plugin
-                .process(midi, &mut plugin.left, &mut plugin.right);
+                .process_batch(midi, &mut plugin.left, &mut plugin.right);
             mix(left, &plugin.left, 0.25);
             mix(right, &plugin.right, 0.25);
         }

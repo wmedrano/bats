@@ -26,10 +26,8 @@ impl Metronome {
     pub fn set_bpm(&mut self, sample_rate: SampleRate, bpm: f32) {
         self.bpm = bpm;
         let beats_per_second = bpm / 60.0;
-        self.position_per_sample = Position::new(
-            0,
-            beats_per_second as f64 * sample_rate.seconds_per_sample() as f64,
-        );
+        self.position_per_sample =
+            Position::new(beats_per_second as f64 * sample_rate.seconds_per_sample() as f64);
     }
 
     /// Get the next position from the metronome.
@@ -64,15 +62,15 @@ mod tests {
         assert_eq!(
             m.take(9).collect::<Vec<Position>>(),
             vec![
-                Position::new(0, 0.0),
-                Position::new(0, 0.25),
-                Position::new(0, 0.5),
-                Position::new(0, 0.75),
-                Position::new(1, 0.0),
-                Position::new(1, 0.25),
-                Position::new(1, 0.5),
-                Position::new(1, 0.75),
-                Position::new(2, 0.0),
+                Position::new(0.0),
+                Position::new(0.25),
+                Position::new(0.5),
+                Position::new(0.75),
+                Position::new(1.0),
+                Position::new(1.25),
+                Position::new(1.5),
+                Position::new(1.75),
+                Position::new(2.0),
             ]
         );
     }

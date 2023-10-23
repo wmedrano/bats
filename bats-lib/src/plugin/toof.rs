@@ -42,36 +42,19 @@ impl BatsInstrument for Toof {
         "toof"
     }
 
-    /// Handle midi processing and output audio signal to `left_out`
-    /// and `right_out`.
-    fn process<'a>(
-        &mut self,
-        midi_in: &[(u32, MidiMessage<'static>)],
-        left_out: &mut [f32],
-        right_out: &mut [f32],
-    ) {
-        self.process_mono(midi_in, left_out);
-        right_out.copy_from_slice(left_out);
-    }
-}
-
-impl Toof {
     /// Handle the processing and output to a single audio output.
-    fn process_mono(&mut self, midi_in: &[(u32, MidiMessage<'static>)], out: &mut [f32]) {
-        let mut midi_in = midi_in.iter().peekable();
-        for (idx, out) in out.iter_mut().enumerate() {
-            while let Some((_, msg)) = midi_in.next_if(|(frame, _)| *frame <= idx as u32) {
-                self.handle_midi(msg);
-            }
-            let mut v = self.voices.iter_mut().map(|v| v.wave.next_sample()).sum();
-            if !self.bypass_filter {
-                v = self.filter.process(v);
-            }
-            *out = v;
+    fn process(&mut self) -> (f32, f32) {
+        let v = self.voices.iter_mut().map(|v| v.wave.next_sample()).sum();
+        if self.bypass_filter {
+            (v, v)
+        } else {
+            let v = self.filter.process(v);
+            (v, v)
         }
     }
 
     /// Handle a midi event.
+    #[cold]
     fn handle_midi(&mut self, msg: &MidiMessage) {
         match msg {
             MidiMessage::NoteOff(_, note, _) | MidiMessage::NoteOn(_, note, U7::MIN) => {
@@ -80,6 +63,7 @@ impl Toof {
             MidiMessage::NoteOn(_, note, _) => {
                 self.voices.push(ToofVoice::new(self.sample_rate, *note));
             }
+            MidiMessage::Reset => self.voices.clear(),
             _ => (),
         }
     }

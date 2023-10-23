@@ -6,14 +6,11 @@ use crate::SampleRate;
 /// https://github.com/ddiakopoulos/MoogLadders/blob/master/src/MusicDSPModel.h.
 #[derive(Copy, Clone, Debug)]
 pub struct MoogFilter {
-    cutoff: f32,
-    resonance: f32,
+    r: f32,
     stage: [f32; 4],
     delay: [f32; 4],
     p: f32,
     k: f32,
-    t1: f32,
-    t2: f32,
 }
 
 impl MoogFilter {
@@ -26,14 +23,11 @@ impl MoogFilter {
     /// Create a new `MoogFilter`.
     pub fn new(sample_rate: SampleRate) -> MoogFilter {
         let mut f = MoogFilter {
-            cutoff: 0.0,
-            resonance: 0.0,
+            r: 0.0,
             stage: [0.0; 4],
             delay: [0.0; 4],
             p: 0.0,
             k: 0.0,
-            t1: 0.0,
-            t2: 0.0,
         };
         f.set_cutoff(
             sample_rate,
@@ -45,27 +39,24 @@ impl MoogFilter {
 
     /// Set the cutoff frequency and resonance.
     pub fn set_cutoff(&mut self, sample_rate: SampleRate, cutoff_frequency: f32, resonance: f32) {
-        self.cutoff = 2.0 * cutoff_frequency * sample_rate.seconds_per_sample();
-        self.p = self.cutoff * (1.8 - 0.8 * self.cutoff);
-        self.k = 2.0 * (self.cutoff * std::f32::consts::PI * 0.5).sin() - 1.0;
-        self.t1 = (1.0 - self.p) * 1.386249;
-        self.t2 = 12.0 + self.t1 * self.t1;
-        self.resonance = resonance * (self.t2 + 6.0 * self.t1) / (self.t2 - 6.0 * self.t1);
+        let cutoff = 2.0 * cutoff_frequency * sample_rate.seconds_per_sample();
+        self.p = cutoff * (1.8 - 0.8 * cutoff);
+        self.k = 2.0 * (cutoff * std::f32::consts::PI * 0.5).sin() - 1.0;
+        let t1 = (1.0 - self.p) * 1.386249;
+        let t2 = 12.0 + t1 * t1;
+        self.r = resonance * (t2 + 6.0 * t1) / (t2 - 6.0 * t1);
     }
 
     /// Process the next sample.
     pub fn process(&mut self, sample: f32) -> f32 {
-        let x = sample - self.resonance * self.stage[3];
+        let x = sample - self.r * self.stage[3];
 
         // Four cascaded one-pole filters (bilinear transform).
-        self.stage[0] =
-            (x * self.p + self.delay[0] * self.p - self.k * self.stage[0]).clamp(-1.0, 1.0);
-        self.stage[1] = self.stage[0] * self.p + self.delay[1] * self.p
-            - self.k * self.stage[1].clamp(-1.0, 1.0);
-        self.stage[2] = self.stage[1] * self.p + self.delay[2] * self.p
-            - self.k * self.stage[2].clamp(-1.0, 1.0);
-        self.stage[3] = self.stage[2] * self.p + self.delay[3] * self.p
-            - self.k * self.stage[3].clamp(-1.0, 1.0);
+        self.stage[0] = x * self.p + self.delay[0] * self.p - self.k * self.stage[0];
+        self.stage[0] = self.stage[0].clamp(-1.0, 1.0);
+        self.stage[1] = self.stage[0] * self.p + self.delay[1] * self.p - self.k * self.stage[1];
+        self.stage[2] = self.stage[1] * self.p + self.delay[2] * self.p - self.k * self.stage[2];
+        self.stage[3] = self.stage[2] * self.p + self.delay[3] * self.p - self.k * self.stage[3];
 
         // Clipping band-limited sigmoid
         self.stage[3] -= (self.stage[3] * self.stage[3] * self.stage[3]) / 6.0;
@@ -77,5 +68,12 @@ impl MoogFilter {
         self.delay[3] = self.stage[2];
 
         self.stage[3]
+    }
+
+    /// Filter apply filtering in `dst` in place.
+    pub fn process_batch(&mut self, dst: &mut [f32]) {
+        for out in dst.iter_mut() {
+            *out = self.process(*out);
+        }
     }
 }

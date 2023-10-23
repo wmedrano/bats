@@ -80,7 +80,7 @@ fn toof_benchmark(c: &mut Criterion) {
         ]);
         let midi_ref = black_box(&midi);
         b.iter(move || {
-            toof.process(midi_ref, &mut left, &mut right);
+            toof.process_batch(midi_ref, &mut left, &mut right);
         })
     });
     c.bench_function(&format!("toof_process_no_filter"), |b| {
@@ -95,7 +95,7 @@ fn toof_benchmark(c: &mut Criterion) {
         ]);
         let midi_ref = black_box(&midi);
         b.iter(move || {
-            toof.process(midi_ref, &mut left, &mut right);
+            toof.process_batch(midi_ref, &mut left, &mut right);
         })
     });
 }
