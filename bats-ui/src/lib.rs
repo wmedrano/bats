@@ -1,5 +1,9 @@
 use anyhow::{anyhow, Result};
 use bats_async::CommandSender;
+use bats_lib::{
+    plugin::{toof::Toof, BatsInstrument},
+    Bats,
+};
 use bats_state::BatsState;
 use colors::ColorScheme;
 use frame_counter::FrameCounter;
@@ -53,7 +57,7 @@ pub struct Ui {
 
 impl Ui {
     /// Create a new `Ui`.
-    pub fn new(commands: CommandSender, plugin_names: Vec<&'static str>) -> Result<Ui> {
+    pub fn new(bats: &Bats, commands: CommandSender) -> Result<Ui> {
         let sdl_context = sdl2::init().map_err(anyhow::Error::msg)?;
         let video_subsystem = sdl_context.video().map_err(anyhow::Error::msg)?;
         let window = video_subsystem
@@ -70,7 +74,7 @@ impl Ui {
         let event_iter = sdl_context.event_pump().map_err(anyhow::Error::msg)?;
         let color_scheme = ColorScheme::default();
         let text_renderer = TextRenderer::new(&canvas)?;
-        let bats_state = BatsState::new(commands, plugin_names);
+        let bats_state = BatsState::new(bats, commands);
         info!("UI initialized.");
         Ok(Ui {
             page: Page::MainMenu,
@@ -112,6 +116,9 @@ impl Ui {
                     (Page::MainMenu, "q") => return ProgramRequest::Exit,
                     (Page::Metronome, "+") => self.bats_state.set_bpm(self.bats_state.bpm() + 1.0),
                     (Page::Metronome, "-") => self.bats_state.set_bpm(self.bats_state.bpm() - 1.0),
+                    (Page::PluginsMenu, "+") => self
+                        .bats_state
+                        .add_plugin(Toof::new(self.bats_state.sample_rate)),
                     _ => (),
                 },
                 _ => (),
@@ -164,7 +171,10 @@ impl Ui {
                 &mut self.canvas,
                 self.color_scheme.foreground,
                 "active plugins".to_string(),
-                self.bats_state.plugin_names().map(|s| s.to_string()),
+                self.bats_state
+                    .plugin_names()
+                    .map(|s| s.to_string())
+                    .chain(std::iter::once("+ Add Plugin".to_string())),
             )
             .unwrap();
     }

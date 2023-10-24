@@ -4,7 +4,7 @@ use wmidi::{MidiMessage, Note, U7};
 use super::BatsInstrument;
 
 /// A simple Sawtooth plugin.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Toof {
     /// If the filter is disabled.
     pub bypass_filter: bool,
@@ -18,7 +18,7 @@ pub struct Toof {
 
 /// A single voice for the Toof plugin. Each voice contains a single
 /// note.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 struct ToofVoice {
     /// The midi note for the voice.
     note: Note,

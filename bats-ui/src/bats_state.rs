@@ -1,4 +1,9 @@
 use bats_async::{Command, CommandSender};
+use bats_dsp::SampleRate;
+use bats_lib::{
+    plugin::{toof::Toof, BatsInstrument},
+    Bats, PluginWithBuffer,
+};
 
 /// Contains state for dealing with
 pub struct BatsState {
@@ -9,19 +14,61 @@ pub struct BatsState {
     /// The current BPM as a string.
     bpm_text: String,
     /// The name of the current plugins.
-    plugin_names: Vec<&'static str>,
+    plugins: Vec<PluginDetails>,
+    /// The sample rate.
+    pub sample_rate: SampleRate,
+    /// The buffer size.
+    buffer_size: usize,
+    /// The next plugin id.
+    next_id: u32,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct PluginDetails {
+    id: u32,
+    name: &'static str,
+}
+
+impl PluginDetails {
+    fn new(p: &PluginWithBuffer) -> PluginDetails {
+        PluginDetails {
+            id: p.id,
+            name: p.plugin.name(),
+        }
+    }
 }
 
 impl BatsState {
-    pub fn new(commands: CommandSender, plugin_names: Vec<&'static str>) -> BatsState {
+    pub fn new(bats: &Bats, commands: CommandSender) -> BatsState {
         let bpm = 120.0;
         commands.send(Command::SetMetronomeBpm(bpm));
         BatsState {
             commands,
             bpm,
             bpm_text: bpm.to_string(),
-            plugin_names,
+            plugins: bats.plugins.iter().map(PluginDetails::new).collect(),
+            sample_rate: bats.sample_rate,
+            buffer_size: bats.buffer_size,
+            next_id: 1,
         }
+    }
+
+    fn take_id(&mut self) -> u32 {
+        let id = self.next_id;
+        self.next_id += 1;
+        id
+    }
+
+    pub fn add_plugin(&mut self, plugin: Toof) {
+        let id = self.take_id();
+        let plugin = PluginWithBuffer {
+            id,
+            plugin,
+            left: vec![0f32; self.buffer_size],
+            right: vec![0f32; self.buffer_size],
+        };
+        self.plugins.push(PluginDetails::new(&plugin));
+        self.commands.send(Command::AddPlugin(plugin));
     }
 
     /// Set the bpm.
@@ -48,6 +95,6 @@ impl BatsState {
 
     /// Get the set of plugin names.
     pub fn plugin_names(&self) -> impl '_ + Iterator<Item = &'static str> {
-        self.plugin_names.iter().copied()
+        self.plugins.iter().map(|p| p.name)
     }
 }

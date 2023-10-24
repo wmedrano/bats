@@ -20,22 +20,23 @@ pub struct Bats {
     /// position.
     transport: Vec<Position>,
     /// The active plugins.
-    plugin: Vec<PluginWithBuffer>,
-    /// The buffer size.
-    buffer_size: usize,
+    pub plugins: Vec<PluginWithBuffer>,
     /// The sample rate.
-    sample_rate: SampleRate,
+    pub sample_rate: SampleRate,
+    pub buffer_size: usize,
 }
 
 /// An plugin with output buffers.
-#[derive(Debug)]
-struct PluginWithBuffer {
+#[derive(Clone, Debug, PartialEq)]
+pub struct PluginWithBuffer {
+    /// The id for this plugin instance.
+    pub id: u32,
     /// The plugin.
-    plugin: Toof,
+    pub plugin: Toof,
     /// The left audio output.
-    left: Vec<f32>,
+    pub left: Vec<f32>,
     /// The right audio output.
-    right: Vec<f32>,
+    pub right: Vec<f32>,
 }
 
 impl Bats {
@@ -45,19 +46,15 @@ impl Bats {
             metronome: Metronome::new(sample_rate, 120.0),
             metronome_volume: 0.0,
             transport: Vec::with_capacity(buffer_size + 1),
-            plugin: Vec::with_capacity(16),
-            buffer_size,
+            plugins: Vec::with_capacity(16),
             sample_rate,
+            buffer_size,
         }
     }
 
     /// Add a new plugin.
-    pub fn add_plugin(&mut self, plugin: Toof) {
-        self.plugin.push(PluginWithBuffer {
-            plugin,
-            left: vec![0f32; self.buffer_size],
-            right: vec![0f32; self.buffer_size],
-        });
+    pub fn add_plugin(&mut self, plugin: PluginWithBuffer) {
+        self.plugins.push(plugin);
     }
 
     /// Process midi data and output audio.
@@ -76,7 +73,7 @@ impl Bats {
             right,
             &mut self.transport,
         );
-        for plugin in self.plugin.iter_mut() {
+        for plugin in self.plugins.iter_mut() {
             plugin
                 .plugin
                 .process_batch(midi, &mut plugin.left, &mut plugin.right);
@@ -85,14 +82,9 @@ impl Bats {
         }
     }
 
-    /// Get the sample rate.
-    pub fn sample_rate(&self) -> SampleRate {
-        self.sample_rate
-    }
-
     /// Iterate over all plugins.
     pub fn iter_plugins(&self) -> impl Iterator<Item = &Toof> {
-        self.plugin.iter().map(|p| &p.plugin)
+        self.plugins.iter().map(|p| &p.plugin)
     }
 }
 

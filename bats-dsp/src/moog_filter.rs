@@ -4,7 +4,7 @@ use crate::SampleRate;
 ///
 /// Credit: Implementation is derived from
 /// https://github.com/ddiakopoulos/MoogLadders/blob/master/src/MusicDSPModel.h.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct MoogFilter {
     r: f32,
     stage: [f32; 4],

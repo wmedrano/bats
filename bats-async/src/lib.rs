@@ -1,15 +1,21 @@
-use bats_lib::Bats;
+use bats_lib::{Bats, PluginWithBuffer};
 use crossbeam_channel::{Receiver, Sender};
 
 const DEFAULT_METRONOME_VOLUME: f32 = 0.8;
 
 /// Contains commands for bats.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Command {
+    /// No command.
+    None,
     /// Toggle the metrenome.
     ToggleMetronome,
     /// Set the BPM of the metronome.
     SetMetronomeBpm(f32),
+    /// Add a new plugin.
+    AddPlugin(PluginWithBuffer),
+    /// Remove a plugin.
+    RemovePlugin { id: u32 },
 }
 
 /// Send commands to a bats instance.
@@ -50,6 +56,7 @@ impl Command {
     /// The command to execute. It returns the command to undo the current command.
     pub fn execute(self, b: &mut Bats) -> Command {
         match self {
+            Command::None => Command::None,
             Command::ToggleMetronome => {
                 if b.metronome_volume > 0.0 {
                     b.metronome_volume = 0.0;
@@ -60,9 +67,18 @@ impl Command {
             }
             Command::SetMetronomeBpm(bpm) => {
                 let previous_bpm = b.metronome.bpm();
-                b.metronome.set_bpm(b.sample_rate(), bpm);
+                b.metronome.set_bpm(b.sample_rate, bpm);
                 Command::SetMetronomeBpm(previous_bpm)
             }
+            Command::AddPlugin(plugin) => {
+                let id = plugin.id;
+                b.add_plugin(plugin);
+                Command::RemovePlugin { id }
+            }
+            Command::RemovePlugin { id } => match b.plugins.iter().position(|p| p.id == id) {
+                None => Command::None,
+                Some(idx) => Command::AddPlugin(b.plugins.remove(idx)),
+            },
         }
     }
 }
@@ -90,7 +106,7 @@ mod tests {
     #[test]
     fn metrenome_set_bpm() {
         let mut b = Bats::new(SampleRate::new(44100.0), 64);
-        b.metronome.set_bpm(b.sample_rate(), 100.0);
+        b.metronome.set_bpm(b.sample_rate, 100.0);
 
         let undo = Command::SetMetronomeBpm(90.0).execute(&mut b);
         assert_eq!(b.metronome.bpm(), 90.0);

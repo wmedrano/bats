@@ -1,5 +1,5 @@
 use anyhow::Result;
-use bats_async::{new_async_commander, CommandReceiver, CommandSender};
+use bats_async::CommandReceiver;
 use bats_lib::Bats;
 use jack::PortSpec;
 use log::{info, warn};
@@ -19,17 +19,13 @@ pub struct ProcessHandler {
 
 impl ProcessHandler {
     /// Create a new `ProcessHandler` with ports registered from `c`.
-    pub fn new(c: &jack::Client, bats: Bats) -> Result<(ProcessHandler, CommandSender)> {
-        let (command_sender, command_receiver) = new_async_commander();
-        Ok((
-            ProcessHandler {
-                ports: Ports::new(c)?,
-                bats,
-                commands: command_receiver,
-                midi_buffer: Vec::with_capacity(4096),
-            },
-            command_sender,
-        ))
+    pub fn new(c: &jack::Client, bats: Bats, commands: CommandReceiver) -> Result<ProcessHandler> {
+        Ok(ProcessHandler {
+            ports: Ports::new(c)?,
+            bats,
+            commands,
+            midi_buffer: Vec::with_capacity(4096),
+        })
     }
 
     /// Returns a function that connects this `ProcessHandler`'s
