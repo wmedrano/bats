@@ -1,8 +1,9 @@
+pub mod buffers;
 pub mod moog_filter;
 pub mod sawtooth;
 
 /// Contains the sample rate.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct SampleRate {
     seconds_per_sample: f32,
 }
@@ -35,7 +36,7 @@ impl SampleRate {
     }
 }
 
-#[cfg(tests)]
+#[cfg(test)]
 mod tests {
     use super::*;
 

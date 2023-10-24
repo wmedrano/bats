@@ -13,6 +13,6 @@ pub struct Args {
     pub log_level: log::LevelFilter,
 
     /// Load up an initial plugin by default.
-    #[arg(long, default_value_t = true)]
+    #[arg(long, default_value_t = false)]
     pub load_initial_plugin: bool,
 }

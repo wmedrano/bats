@@ -1,4 +1,4 @@
-use bats_dsp::SampleRate;
+use bats_dsp::{buffers::Buffers, SampleRate};
 
 pub mod toof;
 
@@ -9,6 +9,9 @@ pub trait BatsInstrument {
 
     /// The name of the plugin.
     fn name(&self) -> &'static str;
+
+    /// Reset the audio params.
+    fn reset_audio_params(&mut self, sample_rate: SampleRate);
 
     /// Handle a midi message.
     fn handle_midi(&mut self, msg: &wmidi::MidiMessage);
@@ -39,13 +42,14 @@ pub trait BatsInstrument {
     /// Handle processing of `midi_in` and return the results. This is
     /// often less efficient but is included for less performance
     /// critical use cases like unit tests.
-    fn process_to_vec(
+    #[cold]
+    fn process_to_buffers(
         &mut self,
         sample_count: usize,
         midi_in: &[(u32, wmidi::MidiMessage<'static>)],
-    ) -> (Vec<f32>, Vec<f32>) {
-        let (mut left, mut right) = (vec![0f32; sample_count], vec![0f32; sample_count]);
-        self.process_batch(midi_in, &mut left, &mut right);
-        (left, right)
+    ) -> Buffers {
+        let mut buffers = Buffers::new(sample_count);
+        self.process_batch(midi_in, &mut buffers.left, &mut buffers.right);
+        buffers
     }
 }

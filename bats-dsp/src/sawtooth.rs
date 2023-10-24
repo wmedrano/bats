@@ -1,7 +1,7 @@
 use crate::SampleRate;
 
 /// A sawtooth wave.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Sawtooth {
     amplitude: f32,
     amplitude_per_sample: f32,

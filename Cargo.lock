@@ -111,6 +111,7 @@ dependencies = [
  "bats-dsp",
  "bats-lib",
  "crossbeam-channel",
+ "log",
 ]
 
 [[package]]
@@ -135,6 +136,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bats-async",
+ "bats-dsp",
  "bats-lib",
  "log",
  "sdl2",
