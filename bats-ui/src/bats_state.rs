@@ -1,5 +1,5 @@
 use bats_async::{Command, CommandSender};
-use bats_dsp::{Buffers, SampleRate};
+use bats_dsp::{buffers::Buffers, SampleRate};
 use bats_lib::{
     plugin::{toof::Toof, BatsInstrument},
     Bats, PluginInstance,
@@ -23,13 +23,15 @@ pub struct BatsState {
     next_id: u32,
 }
 
+/// Contains plugin details.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PluginDetails {
-    id: u32,
-    name: &'static str,
+    pub id: u32,
+    pub name: &'static str,
 }
 
 impl PluginDetails {
+    /// Create a new `PluginDetails` from a `PluginInstance`.
     fn new(p: &PluginInstance) -> PluginDetails {
         PluginDetails {
             id: p.id,
@@ -39,6 +41,7 @@ impl PluginDetails {
 }
 
 impl BatsState {
+    /// Create a new `BatsState`.
     pub fn new(bats: &Bats, commands: CommandSender) -> BatsState {
         let bpm = bats.metronome.bpm();
         let next_id = bats.plugins.iter().map(|p| p.id).max().unwrap_or(0) + 1;
@@ -53,12 +56,14 @@ impl BatsState {
         }
     }
 
+    /// Take the next unique id.
     fn take_id(&mut self) -> u32 {
         let id = self.next_id;
         self.next_id += 1;
         id
     }
 
+    /// Add a new plugin.
     pub fn add_plugin(&mut self, plugin: Toof) {
         let id = self.take_id();
         let plugin = PluginInstance {
@@ -92,8 +97,8 @@ impl BatsState {
         self.commands.send(Command::ToggleMetronome);
     }
 
-    /// Get the set of plugin names.
-    pub fn plugin_names(&self) -> impl '_ + Iterator<Item = &'static str> {
-        self.plugins.iter().map(|p| p.name)
+    /// Get all the plugins.
+    pub fn plugins(&self) -> impl '_ + Iterator<Item = &PluginDetails> {
+        self.plugins.iter()
     }
 }

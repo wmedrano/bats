@@ -74,7 +74,7 @@ impl Command {
             }
             Command::AddPlugin(plugin) => {
                 let id = plugin.id;
-                b.add_plugin(plugin);
+                b.plugins.push(plugin);
                 Command::RemovePlugin { id }
             }
             Command::RemovePlugin { id } => match b.plugins.iter().position(|p| p.id == id) {
@@ -87,7 +87,8 @@ impl Command {
 
 #[cfg(test)]
 mod tests {
-    use bats_dsp::SampleRate;
+    use bats_dsp::{buffers::Buffers, SampleRate};
+    use bats_lib::plugin::{toof::Toof, BatsInstrument};
 
     use super::*;
 
@@ -113,5 +114,30 @@ mod tests {
         let undo = Command::SetMetronomeBpm(90.0).execute(&mut b);
         assert_eq!(b.metronome.bpm(), 90.0);
         assert_eq!(undo, Command::SetMetronomeBpm(100.0));
+    }
+
+    #[test]
+    fn add_plugin() {
+        let mut b = Bats::new(SampleRate::new(44100.0), 64);
+        let initial_plugin = PluginInstance {
+            id: 0,
+            plugin: Toof::new(b.sample_rate),
+            output: Buffers::new(64),
+        };
+        b.plugins.push(initial_plugin.clone());
+        assert_eq!(b.plugins.len(), 1);
+
+        let new_plugin = PluginInstance {
+            id: 10,
+            plugin: Toof::new(b.sample_rate),
+            output: Buffers::new(64),
+        };
+        let undo = Command::AddPlugin(new_plugin.clone()).execute(&mut b);
+        assert_eq!(b.plugins, vec![initial_plugin.clone(), new_plugin.clone()]);
+        assert_eq!(undo, Command::RemovePlugin { id: 10 });
+
+        let undo = Command::RemovePlugin { id: 10 }.execute(&mut b);
+        assert_eq!(b.plugins, vec![initial_plugin]);
+        assert_eq!(undo, Command::AddPlugin(new_plugin.clone()));
     }
 }

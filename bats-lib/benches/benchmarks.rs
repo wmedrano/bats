@@ -1,4 +1,4 @@
-use bats_dsp::{Buffers, SampleRate};
+use bats_dsp::{buffers::Buffers, SampleRate};
 use bats_lib::{
     plugin::{toof::Toof, BatsInstrument},
     PluginInstance,
@@ -21,10 +21,10 @@ fn bats_benchmark(c: &mut Criterion) {
     });
     c.bench_function(&format!("bats_empty"), |b| {
         let mut bats = bats_lib::Bats::new(SampleRate::new(SAMPLE_RATE), BUFFER_SIZE);
-        let (mut left, mut right) = make_buffers(BUFFER_SIZE);
+        let mut buffers = black_box(Buffers::new(BUFFER_SIZE));
         let midi = black_box(&[]);
         b.iter(move || {
-            bats.process(midi, &mut left, &mut right);
+            bats.process(midi, &mut buffers.left, &mut buffers.right);
         })
     });
     c.bench_function(&format!("bats_with_plugins"), |b| {
@@ -33,20 +33,20 @@ fn bats_benchmark(c: &mut Criterion) {
             BUFFER_SIZE,
         ));
         for i in 0..8 {
-            bats.add_plugin(PluginInstance {
+            bats.plugins.push(PluginInstance {
                 id: i as u32,
                 plugin: Toof::new(SampleRate::new(SAMPLE_RATE)),
                 output: Buffers::new(BUFFER_SIZE),
             });
         }
-        let (mut left, mut right) = make_buffers(BUFFER_SIZE);
+        let mut buffers = black_box(Buffers::new(BUFFER_SIZE));
         let midi = black_box([
             (0, PRESS_C4.clone()),
             (BUFFER_SIZE as u32 / 2, RELEASE_C4.clone()),
         ]);
         let midi_ref = black_box(&midi);
         b.iter(move || {
-            bats.process(midi_ref, &mut left, &mut right);
+            bats.process(midi_ref, &mut buffers.left, &mut buffers.right);
         })
     });
 }
@@ -78,7 +78,7 @@ fn metronome_benchmark(c: &mut Criterion) {
 fn toof_benchmark(c: &mut Criterion) {
     c.bench_function(&format!("toof_process"), |b| {
         let mut toof = black_box(Toof::new(SampleRate::new(SAMPLE_RATE)));
-        let (mut left, mut right) = make_buffers(BUFFER_SIZE);
+        let mut buffers = black_box(Buffers::new(BUFFER_SIZE));
         let midi = black_box([
             (0, PRESS_C4.clone()),
             (2 * BUFFER_SIZE as u32 / 4, PRESS_A4.clone()),
@@ -87,13 +87,13 @@ fn toof_benchmark(c: &mut Criterion) {
         ]);
         let midi_ref = black_box(&midi);
         b.iter(move || {
-            toof.process_batch(midi_ref, &mut left, &mut right);
+            toof.process_batch(midi_ref, &mut buffers.left, &mut buffers.right);
         })
     });
     c.bench_function(&format!("toof_process_no_filter"), |b| {
         let mut toof = black_box(Toof::new(SampleRate::new(SAMPLE_RATE)));
         toof.bypass_filter = true;
-        let (mut left, mut right) = make_buffers(BUFFER_SIZE);
+        let mut buffers = black_box(Buffers::new(BUFFER_SIZE));
         let midi = black_box([
             (0, PRESS_C4.clone()),
             (2 * BUFFER_SIZE as u32 / 4, PRESS_A4.clone()),
@@ -102,14 +102,10 @@ fn toof_benchmark(c: &mut Criterion) {
         ]);
         let midi_ref = black_box(&midi);
         b.iter(move || {
-            toof.process_batch(midi_ref, &mut left, &mut right);
+            toof.process_batch(midi_ref, &mut buffers.left, &mut buffers.right);
         })
     });
 }
 
 criterion_group!(benches, bats_benchmark, metronome_benchmark, toof_benchmark);
 criterion_main!(benches);
-
-fn make_buffers(buffer_size: usize) -> (Vec<f32>, Vec<f32>) {
-    black_box((vec![0f32; buffer_size], vec![0f32; buffer_size]))
-}

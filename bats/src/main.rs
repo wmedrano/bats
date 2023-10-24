@@ -8,6 +8,8 @@ use bats_lib::{
 use clap::Parser;
 use log::{error, info};
 
+use crate::jack_adapter::NotificationHandler;
+
 pub mod args;
 pub mod jack_adapter;
 
@@ -32,7 +34,7 @@ fn main() -> Result<()> {
     let mut ui = bats_ui::Ui::new(&bats, command_sender)?;
     let process_handler = jack_adapter::ProcessHandler::new(&client, bats, command_receiver)?;
     let maybe_connector = maybe_make_connector(&process_handler, args.auto_connect_ports);
-    let client = client.activate_async((), process_handler)?;
+    let client = client.activate_async(NotificationHandler {}, process_handler)?;
     spawn_connector_daemon(maybe_connector);
 
     ui.run()?;
@@ -46,10 +48,10 @@ fn make_bats(client: &jack::Client, load_initial_plugin: bool) -> Bats {
     let buffer_size = client.buffer_size() as usize;
     let mut bats = Bats::new(sample_rate, client.buffer_size() as usize);
     if load_initial_plugin {
-        bats.add_plugin(PluginInstance {
+        bats.plugins.push(PluginInstance {
             id: 0,
             plugin: Toof::new(sample_rate),
-            output: bats_dsp::Buffers::new(buffer_size),
+            output: bats_dsp::buffers::Buffers::new(buffer_size),
         });
     }
     bats

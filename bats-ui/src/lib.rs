@@ -172,8 +172,8 @@ impl Ui {
                 self.color_scheme.foreground,
                 "active plugins".to_string(),
                 self.bats_state
-                    .plugin_names()
-                    .map(|s| s.to_string())
+                    .plugins()
+                    .map(|s| s.name.to_string())
                     .chain(std::iter::once("+ Add Plugin".to_string())),
             )
             .unwrap();

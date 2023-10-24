@@ -1,4 +1,4 @@
-use bats_dsp::{Buffers, SampleRate};
+use bats_dsp::{buffers::Buffers, SampleRate};
 
 pub mod toof;
 
@@ -9,6 +9,9 @@ pub trait BatsInstrument {
 
     /// The name of the plugin.
     fn name(&self) -> &'static str;
+
+    /// Reset the audio params.
+    fn reset_audio_params(&mut self, sample_rate: SampleRate);
 
     /// Handle a midi message.
     fn handle_midi(&mut self, msg: &wmidi::MidiMessage);

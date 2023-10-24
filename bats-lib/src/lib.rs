@@ -1,4 +1,4 @@
-use bats_dsp::{Buffers, SampleRate};
+use bats_dsp::{buffers::Buffers, SampleRate};
 use metronome::Metronome;
 use plugin::{toof::Toof, BatsInstrument};
 use position::Position;
@@ -50,9 +50,15 @@ impl Bats {
         }
     }
 
-    /// Add a new plugin.
-    pub fn add_plugin(&mut self, plugin: PluginInstance) {
-        self.plugins.push(plugin);
+    /// Reset the audio parameters.
+    pub fn reset_audio_params(&mut self, sample_rate: SampleRate, buffer_size: usize) {
+        self.metronome.set_bpm(sample_rate, self.metronome.bpm());
+        self.sample_rate = sample_rate;
+        self.buffer_size = buffer_size;
+        for plugin in self.plugins.iter_mut() {
+            plugin.plugin.reset_audio_params(sample_rate);
+            plugin.output = Buffers::new(buffer_size);
+        }
     }
 
     /// Process midi data and output audio.

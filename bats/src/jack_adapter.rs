@@ -2,7 +2,7 @@ use anyhow::Result;
 use bats_async::CommandReceiver;
 use bats_lib::Bats;
 use jack::PortSpec;
-use log::{info, warn};
+use log::{error, info, warn};
 
 /// Implements the JACK processor.
 #[derive(Debug)]
@@ -101,6 +101,61 @@ impl jack::ProcessHandler for ProcessHandler {
             self.ports.left.as_mut_slice(ps),
             self.ports.right.as_mut_slice(ps),
         );
+        jack::Control::Continue
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct NotificationHandler {}
+
+impl jack::NotificationHandler for NotificationHandler {
+    fn thread_init(&self, _: &jack::Client) {}
+
+    fn shutdown(&mut self, _status: jack::ClientStatus, _reason: &str) {}
+
+    fn freewheel(&mut self, _: &jack::Client, _is_freewheel_enabled: bool) {}
+
+    fn sample_rate(&mut self, _: &jack::Client, _srate: jack::Frames) -> jack::Control {
+        jack::Control::Continue
+    }
+
+    fn client_registration(&mut self, _: &jack::Client, name: &str, _is_registered: bool) {
+        info!("JACK client {name} was registered");
+    }
+
+    fn port_registration(
+        &mut self,
+        _: &jack::Client,
+        _port_id: jack::PortId,
+        _is_registered: bool,
+    ) {
+    }
+
+    fn port_rename(
+        &mut self,
+        _: &jack::Client,
+        _port_id: jack::PortId,
+        _old_name: &str,
+        _new_name: &str,
+    ) -> jack::Control {
+        jack::Control::Continue
+    }
+
+    fn ports_connected(
+        &mut self,
+        _: &jack::Client,
+        _port_id_a: jack::PortId,
+        _port_id_b: jack::PortId,
+        _are_connected: bool,
+    ) {
+    }
+
+    fn graph_reorder(&mut self, _: &jack::Client) -> jack::Control {
+        jack::Control::Continue
+    }
+
+    fn xrun(&mut self, _: &jack::Client) -> jack::Control {
+        error!("Buffer xrun occurred. This may cause dropped input and corrupted audio output.");
         jack::Control::Continue
     }
 }
