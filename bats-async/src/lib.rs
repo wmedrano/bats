@@ -1,5 +1,6 @@
 use bats_lib::{Bats, PluginInstance};
 use crossbeam_channel::{Receiver, Sender};
+use log::info;
 
 const DEFAULT_METRONOME_VOLUME: f32 = 0.8;
 
@@ -39,6 +40,7 @@ pub fn new_async_commander() -> (CommandSender, CommandReceiver) {
 impl CommandSender {
     /// Send a single command.
     pub fn send(&self, cmd: Command) {
+        info!("Sending command: {:?}", cmd);
         self.sender.send(cmd).unwrap();
     }
 }

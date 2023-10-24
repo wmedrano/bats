@@ -1,5 +1,32 @@
+use std::fmt;
+
 pub mod moog_filter;
 pub mod sawtooth;
+
+#[derive(Clone, PartialEq)]
+pub struct Buffers {
+    pub left: Vec<f32>,
+    pub right: Vec<f32>,
+}
+
+impl Buffers {
+    pub fn new(len: usize) -> Buffers {
+        Buffers {
+            left: vec![0.0; len],
+            right: vec![0.0; len],
+        }
+    }
+}
+
+impl fmt::Debug for Buffers {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Buffers")
+            .field("length", &self.left.len())
+            .field("left", &self.left.iter().take(4))
+            .field("right", &self.right.iter().take(4))
+            .finish()
+    }
+}
 
 /// Contains the sample rate.
 #[derive(Copy, Clone, Debug, PartialEq)]

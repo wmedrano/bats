@@ -1,4 +1,4 @@
-use bats_dsp::SampleRate;
+use bats_dsp::{Buffers, SampleRate};
 use metronome::Metronome;
 use plugin::{toof::Toof, BatsInstrument};
 use position::Position;
@@ -33,10 +33,8 @@ pub struct PluginInstance {
     pub id: u32,
     /// The plugin.
     pub plugin: Toof,
-    /// The left audio output.
-    pub left: Vec<f32>,
-    /// The right audio output.
-    pub right: Vec<f32>,
+    /// The buffers to output data to.
+    pub output: Buffers,
 }
 
 impl Bats {
@@ -76,9 +74,9 @@ impl Bats {
         for plugin in self.plugins.iter_mut() {
             plugin
                 .plugin
-                .process_batch(midi, &mut plugin.left, &mut plugin.right);
-            mix(left, &plugin.left, 0.25);
-            mix(right, &plugin.right, 0.25);
+                .process_batch(midi, &mut plugin.output.left, &mut plugin.output.right);
+            mix(left, &plugin.output.left, 0.25);
+            mix(right, &plugin.output.right, 0.25);
         }
     }
 
@@ -154,14 +152,13 @@ mod tests {
 
     #[test]
     fn metronome_ticks_regularly() {
-        let mut left = vec![0.0; 44100];
-        let mut right = vec![0.0; 44100];
+        let mut buffers = Buffers::new(44100);
         let mut bats = Bats::new(SampleRate::new(44100.0), 44100);
         bats.metronome_volume = 0.8;
         bats.metronome.set_bpm(SampleRate::new(44100.0), 120.0);
-        bats.process(&[], &mut left, &mut right);
+        bats.process(&[], &mut buffers.left, &mut buffers.right);
         // At 120 BPM, it should tick twice in a second.
-        assert_eq!(left.iter().filter(|v| 0.0 != **v).count(), 2);
-        assert_eq!(right.iter().filter(|v| 0.0 != **v).count(), 2);
+        assert_eq!(buffers.left.iter().filter(|v| 0.0 != **v).count(), 2);
+        assert_eq!(buffers.right.iter().filter(|v| 0.0 != **v).count(), 2);
     }
 }

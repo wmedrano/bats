@@ -111,6 +111,7 @@ dependencies = [
  "bats-dsp",
  "bats-lib",
  "crossbeam-channel",
+ "log",
 ]
 
 [[package]]

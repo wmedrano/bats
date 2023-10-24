@@ -1,4 +1,4 @@
-use bats_dsp::SampleRate;
+use bats_dsp::{Buffers, SampleRate};
 use bats_lib::{
     plugin::{toof::Toof, BatsInstrument},
     PluginInstance,
@@ -36,8 +36,7 @@ fn bats_benchmark(c: &mut Criterion) {
             bats.add_plugin(PluginInstance {
                 id: i as u32,
                 plugin: Toof::new(SampleRate::new(SAMPLE_RATE)),
-                left: vec![0f32; BUFFER_SIZE],
-                right: vec![0f32; BUFFER_SIZE],
+                output: Buffers::new(BUFFER_SIZE),
             });
         }
         let (mut left, mut right) = make_buffers(BUFFER_SIZE);

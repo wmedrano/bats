@@ -1,5 +1,5 @@
 use bats_async::{Command, CommandSender};
-use bats_dsp::SampleRate;
+use bats_dsp::{Buffers, SampleRate};
 use bats_lib::{
     plugin::{toof::Toof, BatsInstrument},
     Bats, PluginInstance,
@@ -40,8 +40,8 @@ impl PluginDetails {
 
 impl BatsState {
     pub fn new(bats: &Bats, commands: CommandSender) -> BatsState {
-        let bpm = 120.0;
-        commands.send(Command::SetMetronomeBpm(bpm));
+        let bpm = bats.metronome.bpm();
+        let next_id = bats.plugins.iter().map(|p| p.id).max().unwrap_or(0) + 1;
         BatsState {
             commands,
             bpm,
@@ -49,7 +49,7 @@ impl BatsState {
             plugins: bats.plugins.iter().map(PluginDetails::new).collect(),
             sample_rate: bats.sample_rate,
             buffer_size: bats.buffer_size,
-            next_id: 1,
+            next_id,
         }
     }
 
@@ -64,8 +64,7 @@ impl BatsState {
         let plugin = PluginInstance {
             id,
             plugin,
-            left: vec![0f32; self.buffer_size],
-            right: vec![0f32; self.buffer_size],
+            output: Buffers::new(self.buffer_size),
         };
         self.plugins.push(PluginDetails::new(&plugin));
         self.commands.send(Command::AddPlugin(plugin));

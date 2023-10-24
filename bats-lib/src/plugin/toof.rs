@@ -81,6 +81,7 @@ impl ToofVoice {
 
 #[cfg(test)]
 mod tests {
+    use bats_dsp::Buffers;
     use wmidi::{Channel, MidiMessage, Note, U7};
 
     use super::*;
@@ -88,16 +89,21 @@ mod tests {
     #[test]
     fn note_press_produces_audio() {
         let mut s = Toof::new(SampleRate::new(44100.0));
-        let (left, right) = s.process_to_vec(44100, &[]);
-        assert_eq!(left, vec![0f32; 44100]);
-        assert_eq!(right, vec![0f32; 44100]);
+        let buffers = s.process_to_buffers(44100, &[]);
+        assert_eq!(
+            buffers,
+            Buffers {
+                left: vec![0f32; 44100],
+                right: vec![0f32; 44100]
+            }
+        );
 
-        let (left, right) = s.process_to_vec(
+        let buffers = s.process_to_buffers(
             44100,
             &[(0, MidiMessage::NoteOn(Channel::Ch1, Note::C3, U7::MAX))],
         );
-        assert_ne!(left, vec![0f32; 44100]);
-        assert_ne!(right, vec![0f32; 44100]);
+        assert_ne!(buffers.left, vec![0f32; 44100]);
+        assert_ne!(buffers.right, vec![0f32; 44100]);
     }
 
     #[test]
@@ -106,23 +112,24 @@ mod tests {
         let note_b = (0, MidiMessage::NoteOn(Channel::Ch1, Note::B4, U7::MAX));
         let mut toof = Toof::new(SampleRate::new(44100.0));
         toof.bypass_filter = true;
-        let (signal_a_left, signal_a_right) = toof.clone().process_to_vec(100, &[note_a.clone()]);
-        let (signal_b_left, signal_b_right) = toof.clone().process_to_vec(100, &[note_b.clone()]);
-        let (signal_summed_left, signal_summed_right) =
-            toof.clone().process_to_vec(100, &[note_a, note_b]);
+        let signal_a = toof.clone().process_to_buffers(100, &[note_a.clone()]);
+        let signal_b = toof.clone().process_to_buffers(100, &[note_b.clone()]);
+        let signal_summed = toof.clone().process_to_buffers(100, &[note_a, note_b]);
         assert_eq!(
-            signal_summed_left,
-            signal_a_left
+            signal_summed.left,
+            signal_a
+                .left
                 .iter()
-                .zip(signal_b_left.iter())
+                .zip(signal_b.left.iter())
                 .map(|(a, b)| *a + *b)
                 .collect::<Vec<_>>()
         );
         assert_eq!(
-            signal_summed_right,
-            signal_a_right
+            signal_summed.right,
+            signal_a
+                .right
                 .iter()
-                .zip(signal_b_right.iter())
+                .zip(signal_b.right.iter())
                 .map(|(a, b)| *a + *b)
                 .collect::<Vec<_>>()
         );

@@ -49,8 +49,7 @@ fn make_bats(client: &jack::Client, load_initial_plugin: bool) -> Bats {
         bats.add_plugin(PluginInstance {
             id: 0,
             plugin: Toof::new(sample_rate),
-            left: vec![0f32; buffer_size],
-            right: vec![0f32; buffer_size],
+            output: bats_dsp::Buffers::new(buffer_size),
         });
     }
     bats
