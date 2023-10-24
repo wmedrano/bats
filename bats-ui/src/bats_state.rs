@@ -2,7 +2,7 @@ use bats_async::{Command, CommandSender};
 use bats_dsp::SampleRate;
 use bats_lib::{
     plugin::{toof::Toof, BatsInstrument},
-    Bats, PluginWithBuffer,
+    Bats, PluginInstance,
 };
 
 /// Contains state for dealing with
@@ -30,7 +30,7 @@ pub struct PluginDetails {
 }
 
 impl PluginDetails {
-    fn new(p: &PluginWithBuffer) -> PluginDetails {
+    fn new(p: &PluginInstance) -> PluginDetails {
         PluginDetails {
             id: p.id,
             name: p.plugin.name(),
@@ -61,7 +61,7 @@ impl BatsState {
 
     pub fn add_plugin(&mut self, plugin: Toof) {
         let id = self.take_id();
-        let plugin = PluginWithBuffer {
+        let plugin = PluginInstance {
             id,
             plugin,
             left: vec![0f32; self.buffer_size],

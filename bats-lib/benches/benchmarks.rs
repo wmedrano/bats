@@ -1,7 +1,7 @@
 use bats_dsp::SampleRate;
 use bats_lib::{
     plugin::{toof::Toof, BatsInstrument},
-    PluginWithBuffer,
+    PluginInstance,
 };
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use wmidi::{Channel, MidiMessage, Note, U7};
@@ -33,7 +33,7 @@ fn bats_benchmark(c: &mut Criterion) {
             BUFFER_SIZE,
         ));
         for i in 0..8 {
-            bats.add_plugin(PluginWithBuffer {
+            bats.add_plugin(PluginInstance {
                 id: i as u32,
                 plugin: Toof::new(SampleRate::new(SAMPLE_RATE)),
                 left: vec![0f32; BUFFER_SIZE],

@@ -20,7 +20,7 @@ pub struct Bats {
     /// position.
     transport: Vec<Position>,
     /// The active plugins.
-    pub plugins: Vec<PluginWithBuffer>,
+    pub plugins: Vec<PluginInstance>,
     /// The sample rate.
     pub sample_rate: SampleRate,
     pub buffer_size: usize,
@@ -28,7 +28,7 @@ pub struct Bats {
 
 /// An plugin with output buffers.
 #[derive(Clone, Debug, PartialEq)]
-pub struct PluginWithBuffer {
+pub struct PluginInstance {
     /// The id for this plugin instance.
     pub id: u32,
     /// The plugin.
@@ -53,7 +53,7 @@ impl Bats {
     }
 
     /// Add a new plugin.
-    pub fn add_plugin(&mut self, plugin: PluginWithBuffer) {
+    pub fn add_plugin(&mut self, plugin: PluginInstance) {
         self.plugins.push(plugin);
     }
 

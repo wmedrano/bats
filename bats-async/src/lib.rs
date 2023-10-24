@@ -1,4 +1,4 @@
-use bats_lib::{Bats, PluginWithBuffer};
+use bats_lib::{Bats, PluginInstance};
 use crossbeam_channel::{Receiver, Sender};
 
 const DEFAULT_METRONOME_VOLUME: f32 = 0.8;
@@ -13,7 +13,7 @@ pub enum Command {
     /// Set the BPM of the metronome.
     SetMetronomeBpm(f32),
     /// Add a new plugin.
-    AddPlugin(PluginWithBuffer),
+    AddPlugin(PluginInstance),
     /// Remove a plugin.
     RemovePlugin { id: u32 },
 }

@@ -3,7 +3,7 @@ use bats_async::new_async_commander;
 use bats_dsp::SampleRate;
 use bats_lib::{
     plugin::{toof::Toof, BatsInstrument},
-    Bats, PluginWithBuffer,
+    Bats, PluginInstance,
 };
 use clap::Parser;
 use log::{error, info};
@@ -46,7 +46,7 @@ fn make_bats(client: &jack::Client, load_initial_plugin: bool) -> Bats {
     let buffer_size = client.buffer_size() as usize;
     let mut bats = Bats::new(sample_rate, client.buffer_size() as usize);
     if load_initial_plugin {
-        bats.add_plugin(PluginWithBuffer {
+        bats.add_plugin(PluginInstance {
             id: 0,
             plugin: Toof::new(sample_rate),
             left: vec![0f32; buffer_size],
