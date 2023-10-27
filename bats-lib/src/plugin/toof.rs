@@ -1,3 +1,4 @@
+use arrayvec::ArrayVec;
 use bats_dsp::{moog_filter::MoogFilter, sawtooth::Sawtooth, SampleRate};
 use wmidi::{MidiMessage, Note, U7};
 
@@ -8,10 +9,12 @@ use super::BatsInstrument;
 pub struct Toof {
     /// If the filter is disabled.
     pub bypass_filter: bool,
+    /// True if toof is polyphonic.
+    pub is_polyphonic: bool,
     /// The sample rate.
     sample_rate: SampleRate,
     /// The active voices for toof.
-    voices: Vec<ToofVoice>,
+    voices: ArrayVec<ToofVoice, 16>,
     /// The low pass filter.
     filter: MoogFilter,
 }
@@ -31,8 +34,9 @@ impl BatsInstrument for Toof {
     fn new(sample_rate: SampleRate) -> Toof {
         Toof {
             bypass_filter: false,
+            is_polyphonic: false,
             sample_rate,
-            voices: Vec::with_capacity(128),
+            voices: ArrayVec::new(),
             filter: MoogFilter::new(sample_rate),
         }
     }
@@ -66,7 +70,14 @@ impl BatsInstrument for Toof {
                 self.voices.retain(|v| v.note != *note);
             }
             MidiMessage::NoteOn(_, note, _) => {
-                self.voices.push(ToofVoice::new(self.sample_rate, *note));
+                if self.is_polyphonic || self.voices.is_empty() {
+                    if self.voices.is_full() {
+                        self.voices.remove(0);
+                    }
+                    self.voices.push(ToofVoice::new(self.sample_rate, *note));
+                } else {
+                    self.voices[0].set_note(self.sample_rate, *note);
+                }
             }
             MidiMessage::Reset => self.voices.clear(),
             _ => (),
@@ -81,6 +92,12 @@ impl ToofVoice {
             note,
             wave: Sawtooth::new(sample_rate, note.to_freq_f32()),
         }
+    }
+
+    /// Set a new note for the current voice.
+    fn set_note(&mut self, sample_rate: SampleRate, note: Note) {
+        self.note = note;
+        self.wave.set_frequency(sample_rate, note.to_freq_f32());
     }
 }
 
@@ -117,6 +134,7 @@ mod tests {
         let note_b = (0, MidiMessage::NoteOn(Channel::Ch1, Note::B4, U7::MAX));
         let mut toof = Toof::new(SampleRate::new(44100.0));
         toof.bypass_filter = true;
+        toof.is_polyphonic = true;
         let signal_a = toof.clone().process_to_buffers(100, &[note_a.clone()]);
         let signal_b = toof.clone().process_to_buffers(100, &[note_b.clone()]);
         let signal_summed = toof.clone().process_to_buffers(100, &[note_a, note_b]);
@@ -138,5 +156,12 @@ mod tests {
                 .map(|(a, b)| *a + *b)
                 .collect::<Vec<_>>()
         );
+    }
+
+    #[test]
+    fn clone_capacity_is_maintained() {
+        let toof = Toof::new(SampleRate::new(44100.0));
+        assert_eq!(toof.voices.capacity(), 16);
+        assert_eq!(toof.clone().voices.capacity(), 16);
     }
 }
