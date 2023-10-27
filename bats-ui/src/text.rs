@@ -57,20 +57,30 @@ impl TextRenderer {
     }
 
     /// Render a simple menu onto `dst`.
+    ///
+    /// # Arguments
+    /// dst - The destination canvas.
+    /// color - The text color.
+    /// header - The header for the menu.
+    /// items - The items as a pair of `(is_selected, text)`.
     pub fn render_menu(
         &mut self,
         dst: &mut Canvas<Window>,
         color: Color,
         header: String,
         items: impl Iterator<Item = String>,
+        selected_idx: Option<usize>,
     ) -> Result<()> {
         let pad = 4;
         self.set_style(FontStyle::BOLD);
         let (_, height) = self.render(dst, header, color, (pad, pad))?;
         self.set_style(FontStyle::empty());
         for (idx, item) in items.enumerate() {
-            let x_y = (32 + pad, height as i32 * (idx + 1) as i32 + pad);
-            self.render(dst, item, color, x_y)?;
+            let y = height as i32 * (idx + 1) as i32 + pad;
+            if selected_idx == Some(idx) {
+                self.render(dst, "*".to_string(), color, (16 + pad, y))?;
+            }
+            self.render(dst, item, color, (32 + pad, y))?;
         }
         Ok(())
     }

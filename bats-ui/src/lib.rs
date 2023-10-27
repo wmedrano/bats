@@ -4,10 +4,10 @@ use bats_lib::{
     plugin::{toof::Toof, BatsInstrument},
     Bats,
 };
-use bats_state::BatsState;
+use bats_state::{BatsState, PluginDetails};
 use colors::ColorScheme;
 use frame_counter::FrameCounter;
-use log::info;
+use log::{debug, info, warn};
 use sdl2::{event::Event, keyboard::Keycode, render::Canvas, video::Window, EventPump};
 use text::TextRenderer;
 
@@ -41,6 +41,8 @@ enum Page {
 pub struct Ui {
     /// The current page.
     page: Page,
+    /// The state for the plugins menu.
+    plugins_menu: PluginsMenuState,
     /// The canvas to render items onto.
     canvas: Canvas<Window>,
     /// An iterator over events.
@@ -78,6 +80,7 @@ impl Ui {
         info!("UI initialized.");
         Ok(Ui {
             page: Page::MainMenu,
+            plugins_menu: PluginsMenuState { selected_idx: 0 },
             canvas,
             event_pump: event_iter,
             color_scheme,
@@ -106,20 +109,33 @@ impl Ui {
             match event {
                 Event::Quit { .. } => return ProgramRequest::Exit,
                 Event::KeyDown {
-                    keycode: Some(Keycode::Escape),
-                    ..
-                } => self.page = Page::MainMenu,
+                    keycode: Some(k), ..
+                } => match (self.page, k) {
+                    (_, Keycode::Escape) => self.page = Page::MainMenu,
+                    (Page::PluginsMenu, Keycode::Up) => self
+                        .plugins_menu
+                        .move_selection(-1, self.bats_state.plugins()),
+                    (Page::PluginsMenu, Keycode::Down) => self
+                        .plugins_menu
+                        .move_selection(1, self.bats_state.plugins()),
+                    (Page::PluginsMenu, Keycode::Return) => {
+                        match self.plugins_menu.selection(self.bats_state.plugins()) {
+                            Some(p) => debug!("Pressed enter on {:?}.", p),
+                            None => self
+                                .bats_state
+                                .add_plugin(Toof::new(self.bats_state.sample_rate)),
+                        }
+                    }
+                    _ => (),
+                },
                 Event::TextInput { text, .. } => match (self.page, text.as_str()) {
                     (_, "M") => self.bats_state.toggle_metronome(),
                     (Page::MainMenu, "m") => self.page = Page::Metronome,
                     (Page::MainMenu, "p") => self.page = Page::PluginsMenu,
                     (Page::MainMenu, "q") => return ProgramRequest::Exit,
-                    (Page::Metronome, "+") => self.bats_state.set_bpm(self.bats_state.bpm() + 1.0),
-                    (Page::Metronome, "-") => self.bats_state.set_bpm(self.bats_state.bpm() - 1.0),
-                    (Page::PluginsMenu, "+") => self
-                        .bats_state
-                        .add_plugin(Toof::new(self.bats_state.sample_rate)),
-                    _ => (),
+                    (Page::Metronome, "+") => self.bats_state.set_bpm(self.bats_state.bpm() + 0.5),
+                    (Page::Metronome, "-") => self.bats_state.set_bpm(self.bats_state.bpm() - 0.5),
+                    x => warn!("Unhandled input {:?}", x),
                 },
                 _ => (),
             }
@@ -160,21 +176,22 @@ impl Ui {
                 self.color_scheme.foreground,
                 "Main Menu".to_string(),
                 items.iter().map(|i| i.to_string()),
+                None,
             )
             .unwrap();
     }
 
     /// Render the plugins menu.
     fn render_plugins(&mut self) {
+        let items = std::iter::once("Add Plugin".to_string())
+            .chain(self.bats_state.plugins().map(|s| s.name.to_string()));
         self.text_renderer
             .render_menu(
                 &mut self.canvas,
                 self.color_scheme.foreground,
-                "active plugins".to_string(),
-                self.bats_state
-                    .plugins()
-                    .map(|s| s.name.to_string())
-                    .chain(std::iter::once("+ Add Plugin".to_string())),
+                "Plugins".to_string(),
+                items,
+                Some(self.plugins_menu.selected_idx),
             )
             .unwrap();
     }
@@ -190,10 +207,44 @@ impl Ui {
             .render_menu(
                 &mut self.canvas,
                 self.color_scheme.foreground,
-                "metronome".to_string(),
+                "Metronome".to_string(),
                 items,
+                None,
             )
             .unwrap();
+    }
+}
+
+/// Contains the plugins menu state.
+#[derive(Copy, Clone, Debug)]
+struct PluginsMenuState {
+    /// The selected index. Note that "0" is reserved for "add plugin".
+    selected_idx: usize,
+}
+
+impl PluginsMenuState {
+    /// Get the current selection or `None` if "add plugin" is selected.
+    fn selection<'a>(
+        &self,
+        plugins: impl Iterator<Item = &'a PluginDetails>,
+    ) -> Option<PluginDetails> {
+        let mut plugins = plugins;
+        if self.selected_idx == 0 {
+            None
+        } else {
+            plugins.nth(self.selected_idx - 1).cloned()
+        }
+    }
+
+    /// Move the selection by `n`. If `n` is negative, the selection will move backwards.
+    fn move_selection<'a>(&mut self, n: isize, plugins: impl Iterator<Item = &'a PluginDetails>) {
+        let n_choices = plugins.count() as isize + 1;
+        let idx = (self.selected_idx as isize + n) % n_choices;
+        if idx < 0 {
+            self.selected_idx = (idx + n_choices) as usize;
+        } else {
+            self.selected_idx = idx as usize;
+        }
     }
 }
 
@@ -208,4 +259,46 @@ fn find_sdl_gl_driver() -> Result<u32> {
         }
     }
     Err(anyhow!("SDL OpenGL driver not found!"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const PLUGIN_DETAIL: PluginDetails = PluginDetails {
+        id: 0,
+        name: "test plugin",
+    };
+
+    fn fake_plugin_details(cnt: usize) -> impl Iterator<Item = &'static PluginDetails> {
+        std::iter::repeat(&PLUGIN_DETAIL).take(cnt)
+    }
+
+    #[test]
+    fn move_selection_advances_selection() {
+        let mut state = PluginsMenuState { selected_idx: 1 };
+        state.move_selection(2, fake_plugin_details(100));
+        assert_eq!(state.selected_idx, 3);
+    }
+
+    #[test]
+    fn move_selection_wraps_around() {
+        let mut state = PluginsMenuState { selected_idx: 2 };
+        state.move_selection(3, fake_plugin_details(4));
+        assert_eq!(state.selected_idx, 0);
+    }
+
+    #[test]
+    fn move_selection_addvances_selection_backward() {
+        let mut state = PluginsMenuState { selected_idx: 2 };
+        state.move_selection(-1, fake_plugin_details(100));
+        assert_eq!(state.selected_idx, 1);
+    }
+
+    #[test]
+    fn move_selection_wraps_around_backwards() {
+        let mut state = PluginsMenuState { selected_idx: 2 };
+        state.move_selection(-3, fake_plugin_details(4));
+        assert_eq!(state.selected_idx, 4);
+    }
 }

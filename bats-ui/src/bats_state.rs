@@ -48,7 +48,7 @@ impl BatsState {
         BatsState {
             commands,
             bpm,
-            bpm_text: bpm.to_string(),
+            bpm_text: format_bpm(bpm),
             plugins: bats.plugins.iter().map(PluginDetails::new).collect(),
             sample_rate: bats.sample_rate,
             buffer_size: bats.buffer_size,
@@ -78,7 +78,7 @@ impl BatsState {
     /// Set the bpm.
     pub fn set_bpm(&mut self, bpm: f32) {
         self.bpm = bpm;
-        self.bpm_text = bpm.to_string();
+        self.bpm_text = format_bpm(bpm);
         self.commands.send(Command::SetMetronomeBpm(bpm));
     }
 
@@ -101,4 +101,8 @@ impl BatsState {
     pub fn plugins(&self) -> impl '_ + Iterator<Item = &PluginDetails> {
         self.plugins.iter()
     }
+}
+
+fn format_bpm(bpm: f32) -> String {
+    format!("{:.1}", bpm)
 }
