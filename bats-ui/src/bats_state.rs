@@ -64,7 +64,7 @@ impl BatsState {
     }
 
     /// Add a new plugin.
-    pub fn add_plugin(&mut self, plugin: Toof) {
+    pub fn add_plugin(&mut self, plugin: Toof) -> &PluginDetails {
         let id = self.take_id();
         let plugin = PluginInstance {
             id,
@@ -73,6 +73,12 @@ impl BatsState {
         };
         self.plugins.push(PluginDetails::new(&plugin));
         self.commands.send(Command::AddPlugin(plugin));
+        self.plugins.last().unwrap()
+    }
+
+    /// Set the armed plugin by id.
+    pub fn set_armed(&mut self, armed: Option<u32>) {
+        self.commands.send(Command::SetArmedPlugin(armed));
     }
 
     /// Set the bpm.

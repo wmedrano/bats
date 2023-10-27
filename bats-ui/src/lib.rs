@@ -7,7 +7,7 @@ use bats_lib::{
 use bats_state::{BatsState, PluginDetails};
 use colors::ColorScheme;
 use frame_counter::FrameCounter;
-use log::{debug, info, warn};
+use log::{info, warn};
 use sdl2::{event::Event, keyboard::Keycode, render::Canvas, video::Window, EventPump};
 use text::TextRenderer;
 
@@ -120,10 +120,14 @@ impl Ui {
                         .move_selection(1, self.bats_state.plugins()),
                     (Page::PluginsMenu, Keycode::Return) => {
                         match self.plugins_menu.selection(self.bats_state.plugins()) {
-                            Some(p) => debug!("Pressed enter on {:?}.", p),
-                            None => self
-                                .bats_state
-                                .add_plugin(Toof::new(self.bats_state.sample_rate)),
+                            Some(p) => self.bats_state.set_armed(Some(p.id)),
+                            None => {
+                                let id = self
+                                    .bats_state
+                                    .add_plugin(Toof::new(self.bats_state.sample_rate))
+                                    .id;
+                                self.bats_state.set_armed(Some(id));
+                            }
                         }
                     }
                     _ => (),

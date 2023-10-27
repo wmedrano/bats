@@ -19,6 +19,8 @@ pub struct Bats {
     /// Note: The first entry in the slice represents the previous
     /// position.
     transport: Vec<Position>,
+    /// The id of the plugin that should take user midi input.
+    pub armed_plugin: Option<u32>,
     /// The active plugins.
     pub plugins: Vec<PluginInstance>,
     /// The sample rate.
@@ -44,6 +46,7 @@ impl Bats {
             metronome: Metronome::new(sample_rate, 120.0),
             metronome_volume: 0.0,
             transport: Vec::with_capacity(buffer_size + 1),
+            armed_plugin: None,
             plugins: Vec::with_capacity(16),
             sample_rate,
             buffer_size,
@@ -78,12 +81,31 @@ impl Bats {
             &mut self.transport,
         );
         for plugin in self.plugins.iter_mut() {
+            let midi = if Some(plugin.id) == self.armed_plugin {
+                midi
+            } else {
+                &[]
+            };
             plugin
                 .plugin
                 .process_batch(midi, &mut plugin.output.left, &mut plugin.output.right);
             mix(left, &plugin.output.left, 0.25);
             mix(right, &plugin.output.right, 0.25);
         }
+    }
+
+    /// Run `process` but output the results to a new `Buffers` object.
+    ///
+    /// Implemented for convenience but performance critical applications should preallocate buffers
+    /// and call `process`.
+    pub fn process_to_buffer(
+        &mut self,
+        sample_count: usize,
+        midi: &[(u32, wmidi::MidiMessage<'static>)],
+    ) -> Buffers {
+        let mut buffers = Buffers::new(sample_count);
+        self.process(midi, &mut buffers.left, &mut buffers.right);
+        buffers
     }
 
     /// Iterate over all plugins.
@@ -133,6 +155,8 @@ fn mix(dst: &mut [f32], src: &[f32], volume: f32) {
 
 #[cfg(test)]
 mod tests {
+    use wmidi::{Channel, Note, U7};
+
     use super::*;
 
     #[test]
@@ -166,5 +190,57 @@ mod tests {
         // At 120 BPM, it should tick twice in a second.
         assert_eq!(buffers.left.iter().filter(|v| 0.0 != **v).count(), 2);
         assert_eq!(buffers.right.iter().filter(|v| 0.0 != **v).count(), 2);
+    }
+
+    #[test]
+    fn midi_without_arm_remains_silent() {
+        let sample_count = 3;
+        let mut b = Bats::new(SampleRate::new(44100.0), sample_count);
+        b.plugins.push(PluginInstance {
+            id: 1,
+            plugin: Toof::new(SampleRate::new(44100.0)),
+            output: Buffers::new(sample_count),
+        });
+        b.armed_plugin = None;
+        let buffers = b.process_to_buffer(
+            sample_count,
+            &[(
+                0,
+                wmidi::MidiMessage::NoteOn(Channel::Ch1, Note::C3, U7::MAX),
+            )],
+        );
+        assert_eq!(
+            buffers,
+            Buffers {
+                left: vec![0.0, 0.0, 0.0],
+                right: vec![0.0, 0.0, 0.0]
+            }
+        );
+    }
+
+    #[test]
+    fn midi_and_armed_produces_sound() {
+        let sample_count = 3;
+        let mut b = Bats::new(SampleRate::new(44100.0), sample_count);
+        b.plugins.push(PluginInstance {
+            id: 1,
+            plugin: Toof::new(SampleRate::new(44100.0)),
+            output: Buffers::new(sample_count),
+        });
+        b.armed_plugin = Some(1);
+        let buffers = b.process_to_buffer(
+            sample_count,
+            &[(
+                0,
+                wmidi::MidiMessage::NoteOn(Channel::Ch1, Note::C3, U7::MAX),
+            )],
+        );
+        assert_ne!(
+            buffers,
+            Buffers {
+                left: vec![0.0, 0.0, 0.0],
+                right: vec![0.0, 0.0, 0.0]
+            }
+        );
     }
 }

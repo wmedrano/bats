@@ -17,6 +17,8 @@ pub enum Command {
     AddPlugin(PluginInstance),
     /// Remove a plugin.
     RemovePlugin { id: u32 },
+    /// Set the armed plugin or use `None` to not arm any plugin.
+    SetArmedPlugin(Option<u32>),
 }
 
 /// Send commands to a bats instance.
@@ -81,6 +83,11 @@ impl Command {
                 None => Command::None,
                 Some(idx) => Command::AddPlugin(b.plugins.remove(idx)),
             },
+            Command::SetArmedPlugin(armed) => {
+                let undo = Command::SetArmedPlugin(b.armed_plugin);
+                b.armed_plugin = armed;
+                undo
+            }
         }
     }
 }
@@ -139,5 +146,23 @@ mod tests {
         let undo = Command::RemovePlugin { id: 10 }.execute(&mut b);
         assert_eq!(b.plugins, vec![initial_plugin]);
         assert_eq!(undo, Command::AddPlugin(new_plugin.clone()));
+    }
+
+    #[test]
+    fn set_armed_plugin() {
+        let mut b = Bats::new(SampleRate::new(44100.0), 64);
+        b.armed_plugin = None;
+
+        let undo = Command::SetArmedPlugin(Some(10)).execute(&mut b);
+        assert_eq!(b.armed_plugin, Some(10));
+        assert_eq!(undo, Command::SetArmedPlugin(None));
+
+        let undo = Command::SetArmedPlugin(Some(20)).execute(&mut b);
+        assert_eq!(b.armed_plugin, Some(20));
+        assert_eq!(undo, Command::SetArmedPlugin(Some(10)));
+
+        let undo = Command::SetArmedPlugin(None).execute(&mut b);
+        assert_eq!(b.armed_plugin, None);
+        assert_eq!(undo, Command::SetArmedPlugin(Some(20)));
     }
 }
