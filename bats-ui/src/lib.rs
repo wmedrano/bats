@@ -172,9 +172,9 @@ impl Ui {
                 },
                 Event::TextInput { text, .. } => match (self.page, text.as_str()) {
                     (_, "M") => self.bats_state.toggle_metronome(),
-                    (Page::MainMenu, "m") => self.page = Page::Metronome,
-                    (Page::MainMenu, "t") => self.page = Page::TracksMenu,
-                    (Page::MainMenu, "q") => return ProgramRequest::Exit,
+                    (_, "m") => self.page = Page::Metronome,
+                    (_, "t") => self.page = Page::TracksMenu,
+                    (_, "q") => return ProgramRequest::Exit,
                     (Page::Metronome, "+") => self.bats_state.set_bpm(self.bats_state.bpm() + 0.5),
                     (Page::Metronome, "-") => self.bats_state.set_bpm(self.bats_state.bpm() - 0.5),
                     (Page::Track { selection }, "+") => {

@@ -7,8 +7,10 @@ Bats is a free and open source (WIP) groovebox for Linux.
 | Key   | Action                           |
 |:------|:---------------------------------|
 | `ESC` | Go to main menu.                 |
+| `m`   | Go to metrenome page.            |
+| `t`   | Go to tracks page.               |
+| `q`   | Quit.                            |
 | `M`   | Toggle the metronome on and off. |
-
 
 ## Plugins
 
