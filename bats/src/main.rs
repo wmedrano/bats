@@ -1,10 +1,7 @@
 use anyhow::Result;
 use bats_async::new_async_commander;
 use bats_dsp::SampleRate;
-use bats_lib::{
-    plugin::{toof::Toof, BatsInstrument},
-    Bats, PluginInstance,
-};
+use bats_lib::Bats;
 use clap::Parser;
 use log::{error, info};
 
@@ -29,7 +26,7 @@ fn main() -> Result<()> {
     info!("Started JACK client {:?}.", client);
     info!("JACK status is {:?}", status);
 
-    let bats = make_bats(&client, args.load_initial_plugin);
+    let bats = make_bats(&client);
     let (command_sender, command_receiver) = new_async_commander();
     let mut ui = bats_ui::Ui::new(&bats, command_sender)?;
     let process_handler = jack_adapter::ProcessHandler::new(&client, bats, command_receiver)?;
@@ -43,18 +40,9 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn make_bats(client: &jack::Client, load_initial_plugin: bool) -> Bats {
+fn make_bats(client: &jack::Client) -> Bats {
     let sample_rate = SampleRate::new(client.sample_rate() as f32);
-    let buffer_size = client.buffer_size() as usize;
-    let mut bats = Bats::new(sample_rate, client.buffer_size() as usize);
-    if load_initial_plugin {
-        bats.plugins.push(PluginInstance {
-            id: 0,
-            plugin: Toof::new(sample_rate),
-            output: bats_dsp::buffers::Buffers::new(buffer_size),
-        });
-    }
-    bats
+    Bats::new(sample_rate, client.buffer_size() as usize)
 }
 
 fn maybe_make_connector(

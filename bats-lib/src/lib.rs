@@ -19,10 +19,10 @@ pub struct Bats {
     /// Note: The first entry in the slice represents the previous
     /// position.
     transport: Vec<Position>,
-    /// The id of the plugin that should take user midi input.
-    pub armed_plugin: Option<u32>,
-    /// The active plugins.
-    pub plugins: Vec<PluginInstance>,
+    /// The id of the track that should take user midi input.
+    pub armed_track: Option<u32>,
+    /// The active track.
+    pub tracks: Vec<Track>,
     /// The sample rate.
     pub sample_rate: SampleRate,
     pub buffer_size: usize,
@@ -30,8 +30,8 @@ pub struct Bats {
 
 /// An plugin with output buffers.
 #[derive(Clone, Debug, PartialEq)]
-pub struct PluginInstance {
-    /// The id for this plugin instance.
+pub struct Track {
+    /// The id for this track instance.
     pub id: u32,
     /// The plugin.
     pub plugin: Toof,
@@ -46,21 +46,10 @@ impl Bats {
             metronome: Metronome::new(sample_rate, 120.0),
             metronome_volume: 0.0,
             transport: Vec::with_capacity(buffer_size + 1),
-            armed_plugin: None,
-            plugins: Vec::with_capacity(16),
+            armed_track: None,
+            tracks: Vec::with_capacity(16),
             sample_rate,
             buffer_size,
-        }
-    }
-
-    /// Reset the audio parameters.
-    pub fn reset_audio_params(&mut self, sample_rate: SampleRate, buffer_size: usize) {
-        self.metronome.set_bpm(sample_rate, self.metronome.bpm());
-        self.sample_rate = sample_rate;
-        self.buffer_size = buffer_size;
-        for plugin in self.plugins.iter_mut() {
-            plugin.plugin.reset_audio_params(sample_rate);
-            plugin.output = Buffers::new(buffer_size);
         }
     }
 
@@ -80,17 +69,17 @@ impl Bats {
             right,
             &mut self.transport,
         );
-        for plugin in self.plugins.iter_mut() {
-            let midi = if Some(plugin.id) == self.armed_plugin {
+        for track in self.tracks.iter_mut() {
+            let midi = if Some(track.id) == self.armed_track {
                 midi
             } else {
                 &[]
             };
-            plugin
+            track
                 .plugin
-                .process_batch(midi, &mut plugin.output.left, &mut plugin.output.right);
-            mix(left, &plugin.output.left, 0.25);
-            mix(right, &plugin.output.right, 0.25);
+                .process_batch(midi, &mut track.output.left, &mut track.output.right);
+            mix(left, &track.output.left, 0.25);
+            mix(right, &track.output.right, 0.25);
         }
     }
 
@@ -110,7 +99,7 @@ impl Bats {
 
     /// Iterate over all plugins.
     pub fn iter_plugins(&self) -> impl Iterator<Item = &Toof> {
-        self.plugins.iter().map(|p| &p.plugin)
+        self.tracks.iter().map(|p| &p.plugin)
     }
 }
 
@@ -196,12 +185,12 @@ mod tests {
     fn midi_without_arm_remains_silent() {
         let sample_count = 3;
         let mut b = Bats::new(SampleRate::new(44100.0), sample_count);
-        b.plugins.push(PluginInstance {
+        b.tracks.push(Track {
             id: 1,
             plugin: Toof::new(SampleRate::new(44100.0)),
             output: Buffers::new(sample_count),
         });
-        b.armed_plugin = None;
+        b.armed_track = None;
         let buffers = b.process_to_buffer(
             sample_count,
             &[(
@@ -222,12 +211,12 @@ mod tests {
     fn midi_and_armed_produces_sound() {
         let sample_count = 3;
         let mut b = Bats::new(SampleRate::new(44100.0), sample_count);
-        b.plugins.push(PluginInstance {
+        b.tracks.push(Track {
             id: 1,
             plugin: Toof::new(SampleRate::new(44100.0)),
             output: Buffers::new(sample_count),
         });
-        b.armed_plugin = Some(1);
+        b.armed_track = Some(1);
         let buffers = b.process_to_buffer(
             sample_count,
             &[(

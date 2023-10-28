@@ -46,11 +46,6 @@ impl BatsInstrument for Toof {
         "toof"
     }
 
-    fn reset_audio_params(&mut self, sample_rate: SampleRate) {
-        self.sample_rate = sample_rate;
-        self.filter = MoogFilter::new(sample_rate);
-    }
-
     /// Handle the processing and output to a single audio output.
     fn process(&mut self) -> (f32, f32) {
         let v = self.voices.iter_mut().map(|v| v.wave.next_sample()).sum();

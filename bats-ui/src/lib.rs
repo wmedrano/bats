@@ -4,7 +4,7 @@ use bats_lib::{
     plugin::{toof::Toof, BatsInstrument},
     Bats,
 };
-use bats_state::{BatsState, PluginDetails};
+use bats_state::{BatsState, TrackDetails};
 use colors::ColorScheme;
 use frame_counter::FrameCounter;
 use log::{info, warn};
@@ -31,8 +31,8 @@ enum ProgramRequest {
 enum Page {
     /// The main menu.
     MainMenu,
-    /// The plugins menu.
-    PluginsMenu,
+    /// The tracks menu.
+    TracksMenu,
     /// The metronome.
     Metronome,
 }
@@ -41,8 +41,8 @@ enum Page {
 pub struct Ui {
     /// The current page.
     page: Page,
-    /// The state for the plugins menu.
-    plugins_menu: PluginsMenuState,
+    /// The state for the track menu.
+    tracks_menu: TracksMenuState,
     /// The canvas to render items onto.
     canvas: Canvas<Window>,
     /// An iterator over events.
@@ -65,6 +65,7 @@ impl Ui {
         let window = video_subsystem
             .window("bats", 320, 240)
             .opengl()
+            .resizable()
             .build()
             .map_err(anyhow::Error::msg)?;
         let canvas = window
@@ -80,7 +81,7 @@ impl Ui {
         info!("UI initialized.");
         Ok(Ui {
             page: Page::MainMenu,
-            plugins_menu: PluginsMenuState { selected_idx: 0 },
+            tracks_menu: TracksMenuState { selected_idx: 0 },
             canvas,
             event_pump: event_iter,
             color_scheme,
@@ -112,14 +113,14 @@ impl Ui {
                     keycode: Some(k), ..
                 } => match (self.page, k) {
                     (_, Keycode::Escape) => self.page = Page::MainMenu,
-                    (Page::PluginsMenu, Keycode::Up) => self
-                        .plugins_menu
-                        .move_selection(-1, self.bats_state.plugins()),
-                    (Page::PluginsMenu, Keycode::Down) => self
-                        .plugins_menu
-                        .move_selection(1, self.bats_state.plugins()),
-                    (Page::PluginsMenu, Keycode::Return) => {
-                        match self.plugins_menu.selection(self.bats_state.plugins()) {
+                    (Page::TracksMenu, Keycode::Up) => self
+                        .tracks_menu
+                        .move_selection(-1, self.bats_state.tracks()),
+                    (Page::TracksMenu, Keycode::Down) => {
+                        self.tracks_menu.move_selection(1, self.bats_state.tracks())
+                    }
+                    (Page::TracksMenu, Keycode::Return) => {
+                        match self.tracks_menu.selection(self.bats_state.tracks()) {
                             Some(p) => self.bats_state.set_armed(Some(p.id)),
                             None => {
                                 let id = self
@@ -135,7 +136,7 @@ impl Ui {
                 Event::TextInput { text, .. } => match (self.page, text.as_str()) {
                     (_, "M") => self.bats_state.toggle_metronome(),
                     (Page::MainMenu, "m") => self.page = Page::Metronome,
-                    (Page::MainMenu, "p") => self.page = Page::PluginsMenu,
+                    (Page::MainMenu, "t") => self.page = Page::TracksMenu,
                     (Page::MainMenu, "q") => return ProgramRequest::Exit,
                     (Page::Metronome, "+") => self.bats_state.set_bpm(self.bats_state.bpm() + 0.5),
                     (Page::Metronome, "-") => self.bats_state.set_bpm(self.bats_state.bpm() - 0.5),
@@ -157,7 +158,7 @@ impl Ui {
         }
         match self.page {
             Page::MainMenu => self.render_main_menu(),
-            Page::PluginsMenu => self.render_plugins(),
+            Page::TracksMenu => self.render_tracks(),
             Page::Metronome => self.render_metronome_menu(),
         }
         self.text_renderer
@@ -173,7 +174,7 @@ impl Ui {
 
     /// Render the main menu.
     fn render_main_menu(&mut self) {
-        let items = ["m - Metronome", "p - Plugins", "q - Quit"];
+        let items = ["m - Metronome", "t - Tracks", "q - Quit"];
         self.text_renderer
             .render_menu(
                 &mut self.canvas,
@@ -185,17 +186,17 @@ impl Ui {
             .unwrap();
     }
 
-    /// Render the plugins menu.
-    fn render_plugins(&mut self) {
-        let items = std::iter::once("Add Plugin".to_string())
-            .chain(self.bats_state.plugins().map(|s| s.name.to_string()));
+    /// Render the tracks menu.
+    fn render_tracks(&mut self) {
+        let items = std::iter::once("Add Track".to_string())
+            .chain(self.bats_state.tracks().map(|s| s.name.to_string()));
         self.text_renderer
             .render_menu(
                 &mut self.canvas,
                 self.color_scheme.foreground,
-                "Plugins".to_string(),
+                "Tracks".to_string(),
                 items,
-                Some(self.plugins_menu.selected_idx),
+                Some(self.tracks_menu.selected_idx),
             )
             .unwrap();
     }
@@ -221,28 +222,28 @@ impl Ui {
 
 /// Contains the plugins menu state.
 #[derive(Copy, Clone, Debug)]
-struct PluginsMenuState {
-    /// The selected index. Note that "0" is reserved for "add plugin".
+struct TracksMenuState {
+    /// The selected index. Note that "0" is reserved for add.
     selected_idx: usize,
 }
 
-impl PluginsMenuState {
-    /// Get the current selection or `None` if "add plugin" is selected.
+impl TracksMenuState {
+    /// Get the current selection or `None` if "add track" is selected.
     fn selection<'a>(
         &self,
-        plugins: impl Iterator<Item = &'a PluginDetails>,
-    ) -> Option<PluginDetails> {
-        let mut plugins = plugins;
+        tracks: impl Iterator<Item = &'a TrackDetails>,
+    ) -> Option<TrackDetails> {
+        let mut tracks = tracks;
         if self.selected_idx == 0 {
             None
         } else {
-            plugins.nth(self.selected_idx - 1).cloned()
+            tracks.nth(self.selected_idx - 1).cloned()
         }
     }
 
     /// Move the selection by `n`. If `n` is negative, the selection will move backwards.
-    fn move_selection<'a>(&mut self, n: isize, plugins: impl Iterator<Item = &'a PluginDetails>) {
-        let n_choices = plugins.count() as isize + 1;
+    fn move_selection<'a>(&mut self, n: isize, tracks: impl Iterator<Item = &'a TrackDetails>) {
+        let n_choices = tracks.count() as isize + 1;
         let idx = (self.selected_idx as isize + n) % n_choices;
         if idx < 0 {
             self.selected_idx = (idx + n_choices) as usize;
@@ -269,40 +270,40 @@ fn find_sdl_gl_driver() -> Result<u32> {
 mod tests {
     use super::*;
 
-    const PLUGIN_DETAIL: PluginDetails = PluginDetails {
+    const TRACK_DETAIL: TrackDetails = TrackDetails {
         id: 0,
         name: "test plugin",
     };
 
-    fn fake_plugin_details(cnt: usize) -> impl Iterator<Item = &'static PluginDetails> {
-        std::iter::repeat(&PLUGIN_DETAIL).take(cnt)
+    fn fake_track_details(cnt: usize) -> impl Iterator<Item = &'static TrackDetails> {
+        std::iter::repeat(&TRACK_DETAIL).take(cnt)
     }
 
     #[test]
     fn move_selection_advances_selection() {
-        let mut state = PluginsMenuState { selected_idx: 1 };
-        state.move_selection(2, fake_plugin_details(100));
+        let mut state = TracksMenuState { selected_idx: 1 };
+        state.move_selection(2, fake_track_details(100));
         assert_eq!(state.selected_idx, 3);
     }
 
     #[test]
     fn move_selection_wraps_around() {
-        let mut state = PluginsMenuState { selected_idx: 2 };
-        state.move_selection(3, fake_plugin_details(4));
+        let mut state = TracksMenuState { selected_idx: 2 };
+        state.move_selection(3, fake_track_details(4));
         assert_eq!(state.selected_idx, 0);
     }
 
     #[test]
     fn move_selection_addvances_selection_backward() {
-        let mut state = PluginsMenuState { selected_idx: 2 };
-        state.move_selection(-1, fake_plugin_details(100));
+        let mut state = TracksMenuState { selected_idx: 2 };
+        state.move_selection(-1, fake_track_details(100));
         assert_eq!(state.selected_idx, 1);
     }
 
     #[test]
     fn move_selection_wraps_around_backwards() {
-        let mut state = PluginsMenuState { selected_idx: 2 };
-        state.move_selection(-3, fake_plugin_details(4));
+        let mut state = TracksMenuState { selected_idx: 2 };
+        state.move_selection(-3, fake_track_details(4));
         assert_eq!(state.selected_idx, 4);
     }
 }

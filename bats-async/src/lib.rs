@@ -1,4 +1,4 @@
-use bats_lib::{Bats, PluginInstance};
+use bats_lib::{Bats, Track};
 use crossbeam_channel::{Receiver, Sender};
 use log::info;
 
@@ -13,12 +13,12 @@ pub enum Command {
     ToggleMetronome,
     /// Set the BPM of the metronome.
     SetMetronomeBpm(f32),
-    /// Add a new plugin.
-    AddPlugin(PluginInstance),
-    /// Remove a plugin.
-    RemovePlugin { id: u32 },
-    /// Set the armed plugin or use `None` to not arm any plugin.
-    SetArmedPlugin(Option<u32>),
+    /// Add a new track.
+    AddTrack(Track),
+    /// Remove a track.
+    RemoveTrack { id: u32 },
+    /// Set the armed track or use `None` to not arm any track.
+    SetArmedTrack(Option<u32>),
 }
 
 /// Send commands to a bats instance.
@@ -74,18 +74,18 @@ impl Command {
                 b.metronome.set_bpm(b.sample_rate, bpm);
                 Command::SetMetronomeBpm(previous_bpm)
             }
-            Command::AddPlugin(plugin) => {
-                let id = plugin.id;
-                b.plugins.push(plugin);
-                Command::RemovePlugin { id }
+            Command::AddTrack(track) => {
+                let id = track.id;
+                b.tracks.push(track);
+                Command::RemoveTrack { id }
             }
-            Command::RemovePlugin { id } => match b.plugins.iter().position(|p| p.id == id) {
+            Command::RemoveTrack { id } => match b.tracks.iter().position(|p| p.id == id) {
                 None => Command::None,
-                Some(idx) => Command::AddPlugin(b.plugins.remove(idx)),
+                Some(idx) => Command::AddTrack(b.tracks.remove(idx)),
             },
-            Command::SetArmedPlugin(armed) => {
-                let undo = Command::SetArmedPlugin(b.armed_plugin);
-                b.armed_plugin = armed;
+            Command::SetArmedTrack(armed) => {
+                let undo = Command::SetArmedTrack(b.armed_track);
+                b.armed_track = armed;
                 undo
             }
         }
@@ -124,45 +124,45 @@ mod tests {
     }
 
     #[test]
-    fn add_plugin() {
+    fn add_track() {
         let mut b = Bats::new(SampleRate::new(44100.0), 64);
-        let initial_plugin = PluginInstance {
+        let intial_track = Track {
             id: 0,
             plugin: Toof::new(b.sample_rate),
             output: Buffers::new(64),
         };
-        b.plugins.push(initial_plugin.clone());
-        assert_eq!(b.plugins.len(), 1);
+        b.tracks.push(intial_track.clone());
+        assert_eq!(b.tracks.len(), 1);
 
-        let new_plugin = PluginInstance {
+        let new_track = Track {
             id: 10,
             plugin: Toof::new(b.sample_rate),
             output: Buffers::new(64),
         };
-        let undo = Command::AddPlugin(new_plugin.clone()).execute(&mut b);
-        assert_eq!(b.plugins, vec![initial_plugin.clone(), new_plugin.clone()]);
-        assert_eq!(undo, Command::RemovePlugin { id: 10 });
+        let undo = Command::AddTrack(new_track.clone()).execute(&mut b);
+        assert_eq!(b.tracks, vec![intial_track.clone(), new_track.clone()]);
+        assert_eq!(undo, Command::RemoveTrack { id: 10 });
 
-        let undo = Command::RemovePlugin { id: 10 }.execute(&mut b);
-        assert_eq!(b.plugins, vec![initial_plugin]);
-        assert_eq!(undo, Command::AddPlugin(new_plugin.clone()));
+        let undo = Command::RemoveTrack { id: 10 }.execute(&mut b);
+        assert_eq!(b.tracks, vec![intial_track]);
+        assert_eq!(undo, Command::AddTrack(new_track.clone()));
     }
 
     #[test]
-    fn set_armed_plugin() {
+    fn set_armed_track() {
         let mut b = Bats::new(SampleRate::new(44100.0), 64);
-        b.armed_plugin = None;
+        b.armed_track = None;
 
-        let undo = Command::SetArmedPlugin(Some(10)).execute(&mut b);
-        assert_eq!(b.armed_plugin, Some(10));
-        assert_eq!(undo, Command::SetArmedPlugin(None));
+        let undo = Command::SetArmedTrack(Some(10)).execute(&mut b);
+        assert_eq!(b.armed_track, Some(10));
+        assert_eq!(undo, Command::SetArmedTrack(None));
 
-        let undo = Command::SetArmedPlugin(Some(20)).execute(&mut b);
-        assert_eq!(b.armed_plugin, Some(20));
-        assert_eq!(undo, Command::SetArmedPlugin(Some(10)));
+        let undo = Command::SetArmedTrack(Some(20)).execute(&mut b);
+        assert_eq!(b.armed_track, Some(20));
+        assert_eq!(undo, Command::SetArmedTrack(Some(10)));
 
-        let undo = Command::SetArmedPlugin(None).execute(&mut b);
-        assert_eq!(b.armed_plugin, None);
-        assert_eq!(undo, Command::SetArmedPlugin(Some(20)));
+        let undo = Command::SetArmedTrack(None).execute(&mut b);
+        assert_eq!(b.armed_track, None);
+        assert_eq!(undo, Command::SetArmedTrack(Some(20)));
     }
 }
