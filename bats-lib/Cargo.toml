@@ -10,6 +10,7 @@ name = "benchmarks"
 harness = false
 
 [dependencies]
+anyhow = "1.0"
 arrayvec = "0.7"
 bats-dsp = { path = "../bats-dsp" }
 wmidi = "4.0"

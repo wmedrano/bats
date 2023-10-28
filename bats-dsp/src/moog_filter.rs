@@ -15,10 +15,10 @@ pub struct MoogFilter {
 
 impl MoogFilter {
     /// The default cutoff frequency.
-    const DEFAULT_CUTOFF_FREQUENCY: f32 = 8000.0;
+    pub const DEFAULT_FREQUENCY_CUTOFF: f32 = 8000.0;
 
     /// The default resonance.
-    const DEFAULT_RESONANCE: f32 = 0.1;
+    pub const DEFAULT_RESONANCE: f32 = 0.1;
 
     /// Create a new `MoogFilter`.
     pub fn new(sample_rate: SampleRate) -> MoogFilter {
@@ -31,7 +31,7 @@ impl MoogFilter {
         };
         f.set_cutoff(
             sample_rate,
-            MoogFilter::DEFAULT_CUTOFF_FREQUENCY,
+            MoogFilter::DEFAULT_FREQUENCY_CUTOFF,
             MoogFilter::DEFAULT_RESONANCE,
         );
         f

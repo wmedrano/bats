@@ -1,6 +1,6 @@
-use bats_lib::{Bats, Track};
+use bats_lib::{plugin::BatsInstrument, Bats, Track};
 use crossbeam_channel::{Receiver, Sender};
-use log::info;
+use log::{error, info};
 
 const DEFAULT_METRONOME_VOLUME: f32 = 0.8;
 
@@ -19,6 +19,12 @@ pub enum Command {
     RemoveTrack { id: u32 },
     /// Set the armed track or use `None` to not arm any track.
     SetArmedTrack(Option<u32>),
+    /// Set a parameter.
+    SetParam {
+        track_id: u32,
+        param_id: u32,
+        value: f32,
+    },
 }
 
 /// Send commands to a bats instance.
@@ -88,6 +94,28 @@ impl Command {
                 b.armed_track = armed;
                 undo
             }
+            Command::SetParam {
+                track_id,
+                param_id,
+                value,
+            } => match b.tracks.iter_mut().find(|t| t.id == track_id) {
+                Some(t) => {
+                    let undo = Command::SetParam {
+                        track_id,
+                        param_id,
+                        value: t.plugin.param(param_id),
+                    };
+                    t.plugin.set_param(param_id, value);
+                    undo
+                }
+                None => {
+                    error!(
+                        "track {} does not exist, will not set param {} to {}.",
+                        track_id, param_id, value
+                    );
+                    Command::None
+                }
+            },
         }
     }
 }

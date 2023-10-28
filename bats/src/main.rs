@@ -30,7 +30,7 @@ fn main() -> Result<()> {
     let (command_sender, command_receiver) = new_async_commander();
     let mut ui = bats_ui::Ui::new(&bats, command_sender)?;
     let process_handler = jack_adapter::ProcessHandler::new(&client, bats, command_receiver)?;
-    let maybe_connector = maybe_make_connector(&process_handler, args.auto_connect_ports);
+    let maybe_connector = maybe_make_connector(&process_handler, args.auto_connect);
     let client = client.activate_async(NotificationHandler {}, process_handler)?;
     spawn_connector_daemon(maybe_connector);
 

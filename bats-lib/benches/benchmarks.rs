@@ -1,6 +1,6 @@
 use bats_dsp::{buffers::Buffers, SampleRate};
 use bats_lib::{
-    plugin::{toof::Toof, BatsInstrument},
+    plugin::{toof::Toof, BatsInstrument, BatsInstrumentExt},
     Track,
 };
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
@@ -92,7 +92,7 @@ fn toof_benchmark(c: &mut Criterion) {
     });
     c.bench_function(&format!("toof_process_no_filter"), |b| {
         let mut toof = black_box(Toof::new(SampleRate::new(SAMPLE_RATE)));
-        toof.bypass_filter = true;
+        toof.set_param_by_name("bypass filter", 1.0).unwrap();
         let mut buffers = black_box(Buffers::new(BUFFER_SIZE));
         let midi = black_box([
             (0, PRESS_C4.clone()),

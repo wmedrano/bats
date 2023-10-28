@@ -4,16 +4,19 @@ use bats_lib::{
     plugin::{toof::Toof, BatsInstrument},
     Bats,
 };
-use bats_state::{BatsState, TrackDetails};
+use bats_state::BatsState;
 use colors::ColorScheme;
 use frame_counter::FrameCounter;
 use log::{info, warn};
 use sdl2::{event::Event, keyboard::Keycode, render::Canvas, video::Window, EventPump};
 use text::TextRenderer;
 
+use crate::param::ParamFormatter;
+
 pub mod bats_state;
 pub mod colors;
 pub mod frame_counter;
+pub mod param;
 pub mod text;
 
 /// Options the user has requested for the window.
@@ -33,6 +36,8 @@ enum Page {
     MainMenu,
     /// The tracks menu.
     TracksMenu,
+    /// The page for a single track.
+    Track { selection: MenuSelection },
     /// The metronome.
     Metronome,
 }
@@ -42,7 +47,7 @@ pub struct Ui {
     /// The current page.
     page: Page,
     /// The state for the track menu.
-    tracks_menu: TracksMenuState,
+    tracks_menu: MenuSelection,
     /// The canvas to render items onto.
     canvas: Canvas<Window>,
     /// An iterator over events.
@@ -81,7 +86,7 @@ impl Ui {
         info!("UI initialized.");
         Ok(Ui {
             page: Page::MainMenu,
-            tracks_menu: TracksMenuState { selected_idx: 0 },
+            tracks_menu: MenuSelection { selected_idx: 0 },
             canvas,
             event_pump: event_iter,
             color_scheme,
@@ -115,13 +120,25 @@ impl Ui {
                     (_, Keycode::Escape) => self.page = Page::MainMenu,
                     (Page::TracksMenu, Keycode::Up) => self
                         .tracks_menu
-                        .move_selection(-1, self.bats_state.tracks()),
-                    (Page::TracksMenu, Keycode::Down) => {
-                        self.tracks_menu.move_selection(1, self.bats_state.tracks())
-                    }
+                        .move_selection(-1, self.bats_state.tracks().count() + 1),
+                    (Page::TracksMenu, Keycode::Down) => self
+                        .tracks_menu
+                        .move_selection(1, self.bats_state.tracks().count() + 1),
                     (Page::TracksMenu, Keycode::Return) => {
-                        match self.tracks_menu.selection(self.bats_state.tracks()) {
-                            Some(p) => self.bats_state.set_armed(Some(p.id)),
+                        match self
+                            .tracks_menu
+                            .selection(
+                                std::iter::once(None).chain(self.bats_state.tracks().map(Some)),
+                            )
+                            .unwrap()
+                            .cloned()
+                        {
+                            Some(t) => {
+                                self.bats_state.set_armed(Some(t.id));
+                                self.page = Page::Track {
+                                    selection: MenuSelection::default(),
+                                };
+                            }
                             None => {
                                 let id = self
                                     .bats_state
@@ -130,6 +147,26 @@ impl Ui {
                                 self.bats_state.set_armed(Some(id));
                             }
                         }
+                    }
+                    (Page::Track { mut selection }, Keycode::Up) => {
+                        selection.move_selection(
+                            -1,
+                            self.bats_state
+                                .selected_track()
+                                .map(|t| t.plugin_metadata.params.len())
+                                .unwrap_or(0),
+                        );
+                        self.page = Page::Track { selection };
+                    }
+                    (Page::Track { mut selection }, Keycode::Down) => {
+                        selection.move_selection(
+                            1,
+                            self.bats_state
+                                .selected_track()
+                                .map(|t| t.plugin_metadata.params.len())
+                                .unwrap_or(0),
+                        );
+                        self.page = Page::Track { selection };
                     }
                     _ => (),
                 },
@@ -140,6 +177,32 @@ impl Ui {
                     (Page::MainMenu, "q") => return ProgramRequest::Exit,
                     (Page::Metronome, "+") => self.bats_state.set_bpm(self.bats_state.bpm() + 0.5),
                     (Page::Metronome, "-") => self.bats_state.set_bpm(self.bats_state.bpm() - 0.5),
+                    (Page::Track { selection }, "+") => {
+                        let track_id = self.bats_state.selected_track().unwrap().id;
+                        let params = self
+                            .bats_state
+                            .selected_track()
+                            .unwrap()
+                            .plugin_metadata
+                            .params;
+                        let param = params[selection.selected_idx];
+                        let value = (self.bats_state.param(track_id, param.id) * 1.05)
+                            .clamp(param.min_value, param.max_value);
+                        self.bats_state.set_param(track_id, param.id, value);
+                    }
+                    (Page::Track { selection }, "-") => {
+                        let track_id = self.bats_state.selected_track().unwrap().id;
+                        let params = self
+                            .bats_state
+                            .selected_track()
+                            .unwrap()
+                            .plugin_metadata
+                            .params;
+                        let param = params[selection.selected_idx];
+                        let value = (self.bats_state.param(track_id, param.id) / 1.05)
+                            .clamp(param.min_value, param.max_value);
+                        self.bats_state.set_param(track_id, param.id, value);
+                    }
                     x => warn!("Unhandled input {:?}", x),
                 },
                 _ => (),
@@ -159,6 +222,7 @@ impl Ui {
         match self.page {
             Page::MainMenu => self.render_main_menu(),
             Page::TracksMenu => self.render_tracks(),
+            Page::Track { selection } => self.render_track(selection),
             Page::Metronome => self.render_metronome_menu(),
         }
         self.text_renderer
@@ -188,8 +252,11 @@ impl Ui {
 
     /// Render the tracks menu.
     fn render_tracks(&mut self) {
-        let items = std::iter::once("Add Track".to_string())
-            .chain(self.bats_state.tracks().map(|s| s.name.to_string()));
+        let items = std::iter::once("Add Track".to_string()).chain(
+            self.bats_state
+                .tracks()
+                .map(|s| s.plugin_metadata.name.to_string()),
+        );
         self.text_renderer
             .render_menu(
                 &mut self.canvas,
@@ -197,6 +264,31 @@ impl Ui {
                 "Tracks".to_string(),
                 items,
                 Some(self.tracks_menu.selected_idx),
+            )
+            .unwrap();
+    }
+
+    /// Render a track.
+    fn render_track(&mut self, selection: MenuSelection) {
+        let armed_track = self.bats_state.armed();
+        let track = self
+            .bats_state
+            .tracks()
+            .find(|t| Some(t.id) == armed_track)
+            .cloned()
+            .unwrap_or_default();
+        let items = track.plugin_metadata.params.iter().map(|p| {
+            let value = self.bats_state.param(track.id, p.id);
+            let param: ParamFormatter = (p.param_type, value).into();
+            format!("{}: {}", p.name, param)
+        });
+        self.text_renderer
+            .render_menu(
+                &mut self.canvas,
+                self.color_scheme.foreground,
+                format!("Track: {}", track.plugin_metadata.name),
+                items,
+                Some(selection.selected_idx),
             )
             .unwrap();
     }
@@ -220,33 +312,26 @@ impl Ui {
     }
 }
 
-/// Contains the plugins menu state.
-#[derive(Copy, Clone, Debug)]
-struct TracksMenuState {
-    /// The selected index. Note that "0" is reserved for add.
+/// Tracks items in a menu for selection.
+#[derive(Copy, Clone, Debug, Default)]
+struct MenuSelection {
+    /// The selected index.
     selected_idx: usize,
 }
 
-impl TracksMenuState {
-    /// Get the current selection or `None` if "add track" is selected.
-    fn selection<'a>(
-        &self,
-        tracks: impl Iterator<Item = &'a TrackDetails>,
-    ) -> Option<TrackDetails> {
-        let mut tracks = tracks;
-        if self.selected_idx == 0 {
-            None
-        } else {
-            tracks.nth(self.selected_idx - 1).cloned()
-        }
+impl MenuSelection {
+    /// Get the currently selected item.
+    fn selection<'a, T>(&self, items: impl Iterator<Item = T>) -> Option<T> {
+        let mut items = items;
+        items.nth(self.selected_idx)
     }
 
     /// Move the selection by `n`. If `n` is negative, the selection will move backwards.
-    fn move_selection<'a>(&mut self, n: isize, tracks: impl Iterator<Item = &'a TrackDetails>) {
-        let n_choices = tracks.count() as isize + 1;
-        let idx = (self.selected_idx as isize + n) % n_choices;
+    fn move_selection(&mut self, n: isize, items_count: usize) {
+        let items_count = items_count as isize;
+        let idx = (self.selected_idx as isize + n) % items_count;
         if idx < 0 {
-            self.selected_idx = (idx + n_choices) as usize;
+            self.selected_idx = (idx + items_count) as usize;
         } else {
             self.selected_idx = idx as usize;
         }
@@ -268,42 +353,51 @@ fn find_sdl_gl_driver() -> Result<u32> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use bats_lib::plugin::metadata::Metadata;
+
+    use crate::bats_state::TrackDetails;
+
     use super::*;
 
-    const TRACK_DETAIL: TrackDetails = TrackDetails {
-        id: 0,
-        name: "test plugin",
-    };
-
-    fn fake_track_details(cnt: usize) -> impl Iterator<Item = &'static TrackDetails> {
-        std::iter::repeat(&TRACK_DETAIL).take(cnt)
+    fn fake_track_details(cnt: usize) -> impl Iterator<Item = TrackDetails> {
+        std::iter::repeat_with(|| TrackDetails {
+            id: 0,
+            plugin_metadata: &Metadata {
+                name: "test plugin",
+                params: &[],
+            },
+            params: HashMap::new(),
+        })
+        .take(cnt)
     }
 
     #[test]
     fn move_selection_advances_selection() {
-        let mut state = TracksMenuState { selected_idx: 1 };
-        state.move_selection(2, fake_track_details(100));
+        let mut state = MenuSelection { selected_idx: 1 };
+        state.move_selection(2, fake_track_details(100).count());
         assert_eq!(state.selected_idx, 3);
     }
 
     #[test]
     fn move_selection_wraps_around() {
-        let mut state = TracksMenuState { selected_idx: 2 };
-        state.move_selection(3, fake_track_details(4));
+        let mut state = MenuSelection { selected_idx: 1 };
+        state.move_selection(3, fake_track_details(4).count());
         assert_eq!(state.selected_idx, 0);
     }
 
     #[test]
     fn move_selection_addvances_selection_backward() {
-        let mut state = TracksMenuState { selected_idx: 2 };
-        state.move_selection(-1, fake_track_details(100));
+        let mut state = MenuSelection { selected_idx: 2 };
+        state.move_selection(-1, fake_track_details(100).count());
         assert_eq!(state.selected_idx, 1);
     }
 
     #[test]
     fn move_selection_wraps_around_backwards() {
-        let mut state = TracksMenuState { selected_idx: 2 };
-        state.move_selection(-3, fake_track_details(4));
-        assert_eq!(state.selected_idx, 4);
+        let mut state = MenuSelection { selected_idx: 2 };
+        state.move_selection(-3, fake_track_details(4).count());
+        assert_eq!(state.selected_idx, 3);
     }
 }

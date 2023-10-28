@@ -2,21 +2,26 @@ use arrayvec::ArrayVec;
 use bats_dsp::{moog_filter::MoogFilter, sawtooth::Sawtooth, SampleRate};
 use wmidi::{MidiMessage, Note, U7};
 
-use super::BatsInstrument;
+use super::{
+    metadata::{Param, ParamType},
+    BatsInstrument, Metadata,
+};
 
 /// A simple Sawtooth plugin.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Toof {
     /// If the filter is disabled.
-    pub bypass_filter: bool,
+    bypass_filter: bool,
     /// True if toof is polyphonic.
-    pub is_polyphonic: bool,
+    is_polyphonic: bool,
     /// The sample rate.
     sample_rate: SampleRate,
     /// The active voices for toof.
     voices: ArrayVec<ToofVoice, 16>,
     /// The low pass filter.
     filter: MoogFilter,
+    filter_cutoff: f32,
+    filter_resonance: f32,
 }
 
 /// A single voice for the Toof plugin. Each voice contains a single
@@ -38,12 +43,50 @@ impl BatsInstrument for Toof {
             sample_rate,
             voices: ArrayVec::new(),
             filter: MoogFilter::new(sample_rate),
+            filter_cutoff: MoogFilter::DEFAULT_FREQUENCY_CUTOFF,
+            filter_resonance: MoogFilter::DEFAULT_RESONANCE,
         }
     }
 
     /// The name of the plugin.
-    fn name(&self) -> &'static str {
-        "toof"
+    fn metadata(&self) -> &'static Metadata {
+        &Metadata {
+            name: "toof",
+            params: &[
+                Param {
+                    id: 1,
+                    name: "bypass filter",
+                    param_type: ParamType::Bool,
+                    default_value: 0.45,
+                    min_value: 0.45,
+                    max_value: 0.55,
+                },
+                Param {
+                    id: 2,
+                    name: "filter cutoff",
+                    param_type: ParamType::Float,
+                    default_value: MoogFilter::DEFAULT_FREQUENCY_CUTOFF,
+                    min_value: 50.0,
+                    max_value: 9000.0,
+                },
+                Param {
+                    id: 3,
+                    name: "filter resonance",
+                    param_type: ParamType::Percent,
+                    default_value: MoogFilter::DEFAULT_RESONANCE,
+                    min_value: 0.05,
+                    max_value: 0.8,
+                },
+                Param {
+                    id: 4,
+                    name: "polyphonic",
+                    param_type: ParamType::Bool,
+                    default_value: 0.4,
+                    min_value: 0.4,
+                    max_value: 0.6,
+                },
+            ],
+        }
     }
 
     /// Handle the processing and output to a single audio output.
@@ -78,6 +121,52 @@ impl BatsInstrument for Toof {
             _ => (),
         }
     }
+
+    /// Get the value of a parameter.
+    fn param(&self, id: u32) -> f32 {
+        match id {
+            1 => {
+                if self.bypass_filter {
+                    0.6
+                } else {
+                    0.4
+                }
+            }
+            2 => self.filter_cutoff,
+            3 => self.filter_resonance,
+            4 => {
+                if self.is_polyphonic {
+                    0.6
+                } else {
+                    0.4
+                }
+            }
+            _ => 0.0,
+        }
+    }
+
+    /// Set a parameter.
+    fn set_param(&mut self, id: u32, value: f32) {
+        match id {
+            1 => {
+                self.bypass_filter = value >= 0.5;
+            }
+            2 => {
+                self.filter_cutoff = value;
+                self.filter
+                    .set_cutoff(self.sample_rate, self.filter_cutoff, self.filter_resonance);
+            }
+            3 => {
+                self.filter_resonance = value;
+                self.filter
+                    .set_cutoff(self.sample_rate, self.filter_cutoff, self.filter_resonance);
+            }
+            4 => {
+                self.is_polyphonic = value >= 0.5;
+            }
+            _ => (),
+        }
+    }
 }
 
 impl ToofVoice {
@@ -100,6 +189,8 @@ impl ToofVoice {
 mod tests {
     use bats_dsp::buffers::Buffers;
     use wmidi::{Channel, MidiMessage, Note, U7};
+
+    use crate::plugin::BatsInstrumentExt;
 
     use super::*;
 

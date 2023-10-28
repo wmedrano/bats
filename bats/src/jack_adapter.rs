@@ -7,10 +7,10 @@ use log::{error, info, warn};
 /// Implements the JACK processor.
 #[derive(Debug)]
 pub struct ProcessHandler {
-    /// The IO ports.
-    ports: Ports,
     /// The bats processing object.
     bats: Bats,
+    /// The IO ports.
+    ports: Ports,
     /// Command queue for the bats processing object.
     commands: CommandReceiver,
     /// An intermediate midi buffer.
@@ -21,8 +21,8 @@ impl ProcessHandler {
     /// Create a new `ProcessHandler` with ports registered from `c`.
     pub fn new(c: &jack::Client, bats: Bats, commands: CommandReceiver) -> Result<ProcessHandler> {
         Ok(ProcessHandler {
-            ports: Ports::new(c)?,
             bats,
+            ports: Ports::new(c)?,
             commands,
             midi_buffer: Vec::with_capacity(4096),
         })

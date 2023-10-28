@@ -6,7 +6,7 @@ use clap::Parser;
 pub struct Args {
     /// If true, then ports will automatically be connected.
     #[arg(long, default_value_t = true)]
-    pub auto_connect_ports: bool,
+    pub auto_connect: bool,
 
     /// The amount of logging to perform. The values are OFF, ERROR, WARN, INFO, DEBUG, and TRACE.
     #[arg(long, default_value_t = log::LevelFilter::Info)]
