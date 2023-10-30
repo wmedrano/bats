@@ -1,14 +1,15 @@
 use anyhow::{anyhow, Result};
 use bats_async::CommandSender;
 use bats_lib::{
-    plugin::{toof::Toof, BatsInstrument},
+    plugin::{metadata::ParamType, toof::Toof, BatsInstrument},
     Bats,
 };
-use bats_state::BatsState;
+use bats_state::{BatsState, TrackDetails};
 use colors::ColorScheme;
 use frame_counter::FrameCounter;
 use log::{info, warn};
 use sdl2::{event::Event, keyboard::Keycode, render::Canvas, video::Window, EventPump};
+use selection::MenuSelection;
 use text::TextRenderer;
 
 use crate::param::ParamFormatter;
@@ -17,6 +18,7 @@ pub mod bats_state;
 pub mod colors;
 pub mod frame_counter;
 pub mod param;
+pub mod selection;
 pub mod text;
 
 /// Options the user has requested for the window.
@@ -62,7 +64,17 @@ pub struct Ui {
     bats_state: BatsState,
 }
 
+fn selected_track<'a>(
+    track_selection: MenuSelection,
+    tracks: impl Iterator<Item = &'a TrackDetails>,
+) -> Option<TrackDetails> {
+    track_selection.selection(std::iter::once(None).chain(tracks.cloned().map(Some)))?
+}
+
 impl Ui {
+    pub const MIN_TRACK_VOLUME: f32 = 0.015625;
+    pub const MAX_TRACK_VOLUME: f32 = 4.0;
+
     /// Create a new `Ui`.
     pub fn new(bats: &Bats, commands: CommandSender) -> Result<Ui> {
         let sdl_context = sdl2::init().map_err(anyhow::Error::msg)?;
@@ -125,14 +137,7 @@ impl Ui {
                         .tracks_menu
                         .move_selection(1, self.bats_state.tracks().count() + 1),
                     (Page::TracksMenu, Keycode::Return) => {
-                        match self
-                            .tracks_menu
-                            .selection(
-                                std::iter::once(None).chain(self.bats_state.tracks().map(Some)),
-                            )
-                            .unwrap()
-                            .cloned()
-                        {
+                        match selected_track(self.tracks_menu, self.bats_state.tracks()) {
                             Some(t) => {
                                 self.bats_state.set_armed(Some(t.id));
                                 self.page = Page::Track {
@@ -177,6 +182,26 @@ impl Ui {
                     (_, "q") => return ProgramRequest::Exit,
                     (Page::Metronome, "+") => self.bats_state.set_bpm(self.bats_state.bpm() + 0.5),
                     (Page::Metronome, "-") => self.bats_state.set_bpm(self.bats_state.bpm() - 0.5),
+                    (Page::TracksMenu, "+") => {
+                        if let Some(t) = selected_track(self.tracks_menu, self.bats_state.tracks())
+                        {
+                            self.bats_state.set_track_volume(
+                                t.id,
+                                (t.volume * 1.05)
+                                    .clamp(Self::MIN_TRACK_VOLUME, Self::MAX_TRACK_VOLUME),
+                            );
+                        }
+                    }
+                    (Page::TracksMenu, "-") => {
+                        if let Some(t) = selected_track(self.tracks_menu, self.bats_state.tracks())
+                        {
+                            self.bats_state.set_track_volume(
+                                t.id,
+                                (t.volume / 1.05)
+                                    .clamp(Self::MIN_TRACK_VOLUME, Self::MAX_TRACK_VOLUME),
+                            );
+                        }
+                    }
                     (Page::Track { selection }, "+") => {
                         let track_id = self.bats_state.selected_track().unwrap().id;
                         let params = self
@@ -252,11 +277,14 @@ impl Ui {
 
     /// Render the tracks menu.
     fn render_tracks(&mut self) {
-        let items = std::iter::once("Add Track".to_string()).chain(
-            self.bats_state
-                .tracks()
-                .map(|s| s.plugin_metadata.name.to_string()),
-        );
+        let items =
+            std::iter::once("Add Track".to_string()).chain(self.bats_state.tracks().map(|t| {
+                format!(
+                    "{} {}",
+                    t.plugin_metadata.name,
+                    ParamFormatter::from((ParamType::Percent, t.volume))
+                )
+            }));
         self.text_renderer
             .render_menu(
                 &mut self.canvas,
@@ -312,32 +340,6 @@ impl Ui {
     }
 }
 
-/// Tracks items in a menu for selection.
-#[derive(Copy, Clone, Debug, Default)]
-struct MenuSelection {
-    /// The selected index.
-    selected_idx: usize,
-}
-
-impl MenuSelection {
-    /// Get the currently selected item.
-    fn selection<'a, T>(&self, items: impl Iterator<Item = T>) -> Option<T> {
-        let mut items = items;
-        items.nth(self.selected_idx)
-    }
-
-    /// Move the selection by `n`. If `n` is negative, the selection will move backwards.
-    fn move_selection(&mut self, n: isize, items_count: usize) {
-        let items_count = items_count as isize;
-        let idx = (self.selected_idx as isize + n) % items_count;
-        if idx < 0 {
-            self.selected_idx = (idx + items_count) as usize;
-        } else {
-            self.selected_idx = idx as usize;
-        }
-    }
-}
-
 /// Find the OpenGL driver index.
 ///
 /// Taken from https://github.com/Rust-SDL2/rust-sdl2#readme and
@@ -349,55 +351,4 @@ fn find_sdl_gl_driver() -> Result<u32> {
         }
     }
     Err(anyhow!("SDL OpenGL driver not found!"))
-}
-
-#[cfg(test)]
-mod tests {
-    use std::collections::HashMap;
-
-    use bats_lib::plugin::metadata::Metadata;
-
-    use crate::bats_state::TrackDetails;
-
-    use super::*;
-
-    fn fake_track_details(cnt: usize) -> impl Iterator<Item = TrackDetails> {
-        std::iter::repeat_with(|| TrackDetails {
-            id: 0,
-            plugin_metadata: &Metadata {
-                name: "test plugin",
-                params: &[],
-            },
-            params: HashMap::new(),
-        })
-        .take(cnt)
-    }
-
-    #[test]
-    fn move_selection_advances_selection() {
-        let mut state = MenuSelection { selected_idx: 1 };
-        state.move_selection(2, fake_track_details(100).count());
-        assert_eq!(state.selected_idx, 3);
-    }
-
-    #[test]
-    fn move_selection_wraps_around() {
-        let mut state = MenuSelection { selected_idx: 1 };
-        state.move_selection(3, fake_track_details(4).count());
-        assert_eq!(state.selected_idx, 0);
-    }
-
-    #[test]
-    fn move_selection_addvances_selection_backward() {
-        let mut state = MenuSelection { selected_idx: 2 };
-        state.move_selection(-1, fake_track_details(100).count());
-        assert_eq!(state.selected_idx, 1);
-    }
-
-    #[test]
-    fn move_selection_wraps_around_backwards() {
-        let mut state = MenuSelection { selected_idx: 2 };
-        state.move_selection(-3, fake_track_details(4).count());
-        assert_eq!(state.selected_idx, 3);
-    }
 }

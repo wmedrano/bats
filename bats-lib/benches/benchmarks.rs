@@ -35,6 +35,7 @@ fn bats_benchmark(c: &mut Criterion) {
         for i in 0..8 {
             bats.tracks.push(Track {
                 id: i as u32,
+                volume: 1.0,
                 plugin: Toof::new(SampleRate::new(SAMPLE_RATE)),
                 output: Buffers::new(BUFFER_SIZE),
             });

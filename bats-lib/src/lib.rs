@@ -35,6 +35,8 @@ pub struct Track {
     pub id: u32,
     /// The plugin.
     pub plugin: Toof,
+    /// The track volume.
+    pub volume: f32,
     /// The buffers to output data to.
     pub output: Buffers,
 }
@@ -78,8 +80,8 @@ impl Bats {
             track
                 .plugin
                 .process_batch(midi, &mut track.output.left, &mut track.output.right);
-            mix(left, &track.output.left, 0.25);
-            mix(right, &track.output.right, 0.25);
+            mix(left, &track.output.left, track.volume);
+            mix(right, &track.output.right, track.volume);
         }
     }
 
@@ -188,6 +190,7 @@ mod tests {
         b.tracks.push(Track {
             id: 1,
             plugin: Toof::new(SampleRate::new(44100.0)),
+            volume: 1.0,
             output: Buffers::new(sample_count),
         });
         b.armed_track = None;
@@ -214,6 +217,7 @@ mod tests {
         b.tracks.push(Track {
             id: 1,
             plugin: Toof::new(SampleRate::new(44100.0)),
+            volume: 1.0,
             output: Buffers::new(sample_count),
         });
         b.armed_track = Some(1);

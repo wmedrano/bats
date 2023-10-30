@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use bats_async::{Command, CommandSender};
+use bats_async::{command::Command, CommandSender};
 use bats_dsp::{buffers::Buffers, sample_rate::SampleRate};
 use bats_lib::{
     plugin::{metadata::Metadata, toof::Toof, BatsInstrument},
@@ -33,21 +33,23 @@ pub struct BatsState {
 pub struct TrackDetails {
     pub id: u32,
     pub plugin_metadata: &'static Metadata,
+    pub volume: f32,
     pub params: HashMap<u32, f32>,
 }
 
 impl TrackDetails {
     /// Create a new `PluginDetails` from a `PluginInstance`.
-    fn new(p: &Track) -> TrackDetails {
-        let plugin_metadata = p.plugin.metadata();
+    fn new(t: &Track) -> TrackDetails {
+        let plugin_metadata = t.plugin.metadata();
         let params = plugin_metadata
             .params
             .iter()
             .map(|p| (p.id, p.default_value))
             .collect();
         TrackDetails {
-            id: p.id,
+            id: t.id,
             plugin_metadata,
+            volume: t.volume,
             params,
         }
     }
@@ -83,6 +85,7 @@ impl BatsState {
         let plugin = Track {
             id,
             plugin,
+            volume: 1.0,
             output: Buffers::new(self.buffer_size),
         };
         self.tracks.push(TrackDetails::new(&plugin));
@@ -99,6 +102,14 @@ impl BatsState {
     pub fn set_armed(&mut self, armed: Option<u32>) {
         self.armed_track = armed;
         self.commands.send(Command::SetArmedTrack(armed));
+    }
+
+    pub fn set_track_volume(&mut self, track_id: u32, volume: f32) {
+        if let Some(t) = self.tracks.iter_mut().find(|t| t.id == track_id) {
+            t.volume = volume;
+            self.commands
+                .send(Command::SetTrackVolume { track_id, volume });
+        }
     }
 
     /// Set the bpm.
