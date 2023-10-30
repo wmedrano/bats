@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use bats_dsp::{buffers::Buffers, SampleRate};
+use bats_dsp::{buffers::Buffers, sample_rate::SampleRate};
 
 use self::metadata::Metadata;
 

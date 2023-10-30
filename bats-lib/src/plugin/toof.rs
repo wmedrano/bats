@@ -1,5 +1,10 @@
 use arrayvec::ArrayVec;
-use bats_dsp::{moog_filter::MoogFilter, sawtooth::Sawtooth, SampleRate};
+use bats_dsp::{
+    envelope::{Envelope, EnvelopeParams},
+    moog_filter::MoogFilter,
+    sample_rate::SampleRate,
+    sawtooth::Sawtooth,
+};
 use wmidi::{MidiMessage, Note, U7};
 
 use super::{
@@ -16,12 +21,16 @@ pub struct Toof {
     is_polyphonic: bool,
     /// The sample rate.
     sample_rate: SampleRate,
-    /// The active voices for toof.
-    voices: ArrayVec<ToofVoice, 16>,
+    /// Parameters for envelope.
+    envelope: EnvelopeParams,
     /// The low pass filter.
     filter: MoogFilter,
+    /// The filter cutoff frequency.
     filter_cutoff: f32,
+    /// The filter resonance.
     filter_resonance: f32,
+    /// The active voices for toof.
+    voices: ArrayVec<ToofVoice, 16>,
 }
 
 /// A single voice for the Toof plugin. Each voice contains a single
@@ -32,19 +41,23 @@ struct ToofVoice {
     note: Note,
     /// The sawtooth wave.
     wave: Sawtooth,
+    /// The envelope.
+    envelope: Envelope,
 }
 
 impl BatsInstrument for Toof {
     /// Create a new Toof plugin with the given sample rate.
     fn new(sample_rate: SampleRate) -> Toof {
+        let envelope = EnvelopeParams::new(sample_rate, 0.005, 0.08, 0.4, 0.05);
         Toof {
             bypass_filter: false,
             is_polyphonic: false,
             sample_rate,
-            voices: ArrayVec::new(),
+            envelope,
             filter: MoogFilter::new(sample_rate),
             filter_cutoff: MoogFilter::DEFAULT_FREQUENCY_CUTOFF,
             filter_resonance: MoogFilter::DEFAULT_RESONANCE,
+            voices: ArrayVec::new(),
         }
     }
 
@@ -91,7 +104,12 @@ impl BatsInstrument for Toof {
 
     /// Handle the processing and output to a single audio output.
     fn process(&mut self) -> (f32, f32) {
-        let v = self.voices.iter_mut().map(|v| v.wave.next_sample()).sum();
+        let v = self
+            .voices
+            .iter_mut()
+            .map(|v| v.next_sample(&self.envelope))
+            .sum();
+        self.voices.retain(|v| v.envelope.is_active());
         if self.bypass_filter {
             (v, v)
         } else {
@@ -105,7 +123,11 @@ impl BatsInstrument for Toof {
     fn handle_midi(&mut self, msg: &MidiMessage) {
         match msg {
             MidiMessage::NoteOff(_, note, _) | MidiMessage::NoteOn(_, note, U7::MIN) => {
-                self.voices.retain(|v| v.note != *note);
+                for v in self.voices.iter_mut() {
+                    if v.note == *note {
+                        v.envelope.release(&self.envelope);
+                    }
+                }
             }
             MidiMessage::NoteOn(_, note, _) => {
                 if self.is_polyphonic || self.voices.is_empty() {
@@ -175,6 +197,7 @@ impl ToofVoice {
         ToofVoice {
             note,
             wave: Sawtooth::new(sample_rate, note.to_freq_f32()),
+            envelope: Envelope::new(),
         }
     }
 
@@ -182,6 +205,14 @@ impl ToofVoice {
     fn set_note(&mut self, sample_rate: SampleRate, note: Note) {
         self.note = note;
         self.wave.set_frequency(sample_rate, note.to_freq_f32());
+        self.envelope = Envelope::new();
+    }
+
+    /// Retrieve the next sample.
+    fn next_sample(&mut self, envelope: &EnvelopeParams) -> f32 {
+        let wave_amp = self.wave.next_sample();
+        let env_amp = self.envelope.next_sample(envelope);
+        wave_amp * env_amp
     }
 }
 

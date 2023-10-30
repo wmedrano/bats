@@ -1,6 +1,6 @@
 use anyhow::Result;
 use bats_async::new_async_commander;
-use bats_dsp::SampleRate;
+use bats_dsp::sample_rate::SampleRate;
 use bats_lib::Bats;
 use clap::Parser;
 use log::{error, info};

@@ -1,4 +1,4 @@
-use bats_dsp::{buffers::Buffers, SampleRate};
+use bats_dsp::{buffers::Buffers, sample_rate::SampleRate};
 use metronome::Metronome;
 use plugin::{toof::Toof, BatsInstrument};
 use position::Position;

@@ -122,7 +122,7 @@ impl Command {
 
 #[cfg(test)]
 mod tests {
-    use bats_dsp::{buffers::Buffers, SampleRate};
+    use bats_dsp::{buffers::Buffers, sample_rate::SampleRate};
     use bats_lib::plugin::{toof::Toof, BatsInstrument};
 
     use super::*;

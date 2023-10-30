@@ -1,4 +1,4 @@
-use bats_dsp::SampleRate;
+use bats_dsp::sample_rate::SampleRate;
 
 use crate::position::Position;
 

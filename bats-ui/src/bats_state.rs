@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use bats_async::{Command, CommandSender};
-use bats_dsp::{buffers::Buffers, SampleRate};
+use bats_dsp::{buffers::Buffers, sample_rate::SampleRate};
 use bats_lib::{
     plugin::{metadata::Metadata, toof::Toof, BatsInstrument},
     Bats, Track,

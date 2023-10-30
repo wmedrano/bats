@@ -1,4 +1,4 @@
-use crate::SampleRate;
+use crate::sample_rate::SampleRate;
 
 /// A sawtooth wave.
 #[derive(Copy, Clone, Debug, PartialEq)]
