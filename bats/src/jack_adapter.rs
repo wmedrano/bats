@@ -109,13 +109,26 @@ impl jack::ProcessHandler for ProcessHandler {
 pub struct NotificationHandler {}
 
 impl jack::NotificationHandler for NotificationHandler {
-    fn thread_init(&self, _: &jack::Client) {}
+    fn thread_init(&self, _: &jack::Client) {
+        info!("Jack thread initialized.");
+    }
 
-    fn shutdown(&mut self, _status: jack::ClientStatus, _reason: &str) {}
+    fn shutdown(&mut self, status: jack::ClientStatus, reason: &str) {
+        info!(
+            "Shutting down with status {:?} for reason: {}",
+            status, reason
+        );
+    }
 
-    fn freewheel(&mut self, _: &jack::Client, _is_freewheel_enabled: bool) {}
+    fn freewheel(&mut self, _: &jack::Client, is_freewheel_enabled: bool) {
+        info!("JACK freewheel mode set to {}.", is_freewheel_enabled);
+    }
 
-    fn sample_rate(&mut self, _: &jack::Client, _srate: jack::Frames) -> jack::Control {
+    fn sample_rate(&mut self, _: &jack::Client, sample_rate: jack::Frames) -> jack::Control {
+        error!(
+            "Sample Rate set to {}. Changing sample rate is not supported.",
+            sample_rate
+        );
         jack::Control::Continue
     }
 
@@ -123,21 +136,43 @@ impl jack::NotificationHandler for NotificationHandler {
         info!("JACK client {name} was registered");
     }
 
-    fn port_registration(
-        &mut self,
-        _: &jack::Client,
-        _port_id: jack::PortId,
-        _is_registered: bool,
-    ) {
+    fn port_registration(&mut self, c: &jack::Client, port_id: jack::PortId, is_registered: bool) {
+        let port = match c.port_by_id(port_id) {
+            Some(p) => p,
+            None => {
+                warn!("Could not get port for port registered with id {port_id}.");
+                return;
+            }
+        };
+        let name = port.name().unwrap_or_else(|err| format!("Error{}", err));
+        info!(
+            "Port {}: Port(id={port_id}, name={name})",
+            if is_registered {
+                "registered"
+            } else {
+                "unregistered"
+            }
+        );
+        if name == "" {
+            return;
+        }
+        let is_physical_input = port
+            .flags()
+            .contains(jack::PortFlags::IS_OUTPUT | jack::PortFlags::IS_TERMINAL);
+        let is_midi = match port.port_type() {
+            Ok(s) => s == jack::MidiIn.jack_port_type(),
+            _ => false,
+        };
     }
 
     fn port_rename(
         &mut self,
         _: &jack::Client,
-        _port_id: jack::PortId,
-        _old_name: &str,
-        _new_name: &str,
+        port_id: jack::PortId,
+        old_name: &str,
+        new_name: &str,
     ) -> jack::Control {
+        info!("Port(id={port_id}) {old_name} was renamed to {new_name}.");
         jack::Control::Continue
     }
 
