@@ -80,7 +80,7 @@ impl BatsState {
     }
 
     /// Add a new plugin.
-    pub fn add_plugin(&mut self, plugin: Toof) -> &TrackDetails {
+    pub fn add_plugin(&mut self, plugin: Box<Toof>) -> &TrackDetails {
         let id = self.take_id();
         let plugin = Track {
             id,

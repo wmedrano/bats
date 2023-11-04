@@ -7,7 +7,7 @@ pub struct MenuSelection {
 
 impl MenuSelection {
     /// Get the currently selected item from `items`.
-    pub fn selection<'a, T>(&self, items: impl Iterator<Item = T>) -> Option<T> {
+    pub fn selection<T>(&self, items: impl Iterator<Item = T>) -> Option<T> {
         let mut items = items;
         items.nth(self.selected_idx)
     }

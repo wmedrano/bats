@@ -9,7 +9,7 @@ pub mod toof;
 /// Defines a generic instrument plugin.
 pub trait BatsInstrument {
     /// Create a new plugin.
-    fn new(sample_rate: SampleRate) -> Self;
+    fn new(sample_rate: SampleRate) -> Box<Self>;
 
     /// The name of the plugin.
     fn metadata(&self) -> &'static Metadata;

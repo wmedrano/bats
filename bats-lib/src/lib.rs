@@ -34,7 +34,7 @@ pub struct Track {
     /// The id for this track instance.
     pub id: u32,
     /// The plugin.
-    pub plugin: Toof,
+    pub plugin: Box<Toof>,
     /// The track volume.
     pub volume: f32,
     /// The buffers to output data to.
@@ -101,7 +101,7 @@ impl Bats {
 
     /// Iterate over all plugins.
     pub fn iter_plugins(&self) -> impl Iterator<Item = &Toof> {
-        self.tracks.iter().map(|p| &p.plugin)
+        self.tracks.iter().map(|p| p.plugin.as_ref())
     }
 }
 

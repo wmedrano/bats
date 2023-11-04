@@ -153,16 +153,6 @@ impl jack::NotificationHandler for NotificationHandler {
                 "unregistered"
             }
         );
-        if name == "" {
-            return;
-        }
-        let is_physical_input = port
-            .flags()
-            .contains(jack::PortFlags::IS_OUTPUT | jack::PortFlags::IS_TERMINAL);
-        let is_midi = match port.port_type() {
-            Ok(s) => s == jack::MidiIn.jack_port_type(),
-            _ => false,
-        };
     }
 
     fn port_rename(

@@ -47,9 +47,9 @@ struct ToofVoice {
 
 impl BatsInstrument for Toof {
     /// Create a new Toof plugin with the given sample rate.
-    fn new(sample_rate: SampleRate) -> Toof {
+    fn new(sample_rate: SampleRate) -> Box<Toof> {
         let envelope = EnvelopeParams::new(sample_rate, 0.005, 0.08, 0.4, 0.05);
-        Toof {
+        Box::new(Toof {
             bypass_filter: false,
             is_polyphonic: false,
             sample_rate,
@@ -58,7 +58,7 @@ impl BatsInstrument for Toof {
             filter_cutoff: MoogFilter::DEFAULT_FREQUENCY_CUTOFF,
             filter_resonance: MoogFilter::DEFAULT_RESONANCE,
             voices: ArrayVec::new(),
-        }
+        })
     }
 
     /// The name of the plugin.
