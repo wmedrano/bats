@@ -34,26 +34,3 @@ pub struct Param {
     /// The maximum value.
     pub max_value: f32,
 }
-
-impl Param {
-    /// Create a new bool parameter.
-    pub const fn new_bool(id: u32, name: &'static str, default_value: bool) -> Param {
-        Param {
-            id,
-            name,
-            param_type: ParamType::Bool,
-            default_value: if default_value { 0.55 } else { 0.45 },
-            min_value: 0.45,
-            max_value: 0.55,
-        }
-    }
-}
-
-impl Default for &'static Metadata {
-    fn default() -> &'static Metadata {
-        &Metadata {
-            name: "default-plugin",
-            params: &[],
-        }
-    }
-}

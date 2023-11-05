@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use bats_dsp::{buffers::Buffers, sample_rate::SampleRate};
+use bats_dsp::buffers::Buffers;
 
 use self::metadata::Metadata;
 
@@ -8,9 +8,6 @@ pub mod toof;
 
 /// Defines a generic instrument plugin.
 pub trait BatsInstrument {
-    /// Create a new plugin.
-    fn new(sample_rate: SampleRate) -> Box<Self>;
-
     /// The name of the plugin.
     fn metadata(&self) -> &'static Metadata;
 
@@ -31,18 +28,15 @@ pub trait BatsInstrument {
     fn process_batch(
         &mut self,
         midi_in: &[(u32, wmidi::MidiMessage<'static>)],
-        left_out: &mut [f32],
-        right_out: &mut [f32],
+        output: &mut Buffers,
     ) {
-        let sample_count = left_out.len().min(right_out.len());
+        let sample_count = output.len();
         let mut midi_iter = midi_in.iter().peekable();
         for i in 0..sample_count {
             while let Some((_, msg)) = midi_iter.next_if(|(frame, _)| *frame <= i as u32) {
                 self.handle_midi(msg);
             }
-            let (l, r) = self.process();
-            left_out[i] = l;
-            right_out[i] = r;
+            output.set(i, self.process())
         }
     }
 }
@@ -58,7 +52,7 @@ pub trait BatsInstrumentExt: BatsInstrument {
         midi_in: &[(u32, wmidi::MidiMessage<'static>)],
     ) -> Buffers {
         let mut buffers = Buffers::new(sample_count);
-        self.process_batch(midi_in, &mut buffers.left, &mut buffers.right);
+        self.process_batch(midi_in, &mut buffers);
         buffers
     }
 
@@ -82,3 +76,28 @@ pub trait BatsInstrumentExt: BatsInstrument {
 }
 
 impl<T: BatsInstrument> BatsInstrumentExt for T {}
+
+#[cfg(test)]
+mod tests {
+    use bats_dsp::sample_rate::SampleRate;
+
+    use super::{toof::Toof, *};
+
+    #[test]
+    fn set_param_by_name_sets_param_by_name() {
+        let mut manual = Toof::new(SampleRate::new(44100.0));
+        let mut by_name = Toof::new(SampleRate::new(44100.0));
+
+        manual.set_param(2, 432.0);
+        assert_ne!(manual, by_name);
+        by_name.set_param_by_name("filter cutoff", 432.0).unwrap();
+        assert_eq!(manual, by_name);
+    }
+
+    #[test]
+    fn set_param_by_name_with_bad_name_returns_error() {
+        let mut plugin = Toof::new(SampleRate::new(44100.0));
+        let param_name = "Name that does not exist.";
+        assert!(plugin.set_param_by_name(param_name, 0.0).is_err());
+    }
+}

@@ -77,9 +77,7 @@ impl Bats {
             } else {
                 &[]
             };
-            track
-                .plugin
-                .process_batch(midi, &mut track.output.left, &mut track.output.right);
+            track.plugin.process_batch(midi, &mut track.output);
             mix(left, &track.output.left, track.volume);
             mix(right, &track.output.right, track.volume);
         }
@@ -97,11 +95,6 @@ impl Bats {
         let mut buffers = Buffers::new(sample_count);
         self.process(midi, &mut buffers.left, &mut buffers.right);
         buffers
-    }
-
-    /// Iterate over all plugins.
-    pub fn iter_plugins(&self) -> impl Iterator<Item = &Toof> {
-        self.tracks.iter().map(|p| p.plugin.as_ref())
     }
 }
 

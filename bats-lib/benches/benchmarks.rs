@@ -27,7 +27,7 @@ fn bats_benchmark(c: &mut Criterion) {
             bats.process(midi, &mut buffers.left, &mut buffers.right);
         })
     });
-    c.bench_function(&format!("bats_with_plugins"), |b| {
+    c.bench_function(&format!("bats_with_8_toofs"), |b| {
         let mut bats = black_box(bats_lib::Bats::new(
             SampleRate::new(SAMPLE_RATE),
             BUFFER_SIZE,
@@ -88,7 +88,7 @@ fn toof_benchmark(c: &mut Criterion) {
         ]);
         let midi_ref = black_box(&midi);
         b.iter(move || {
-            toof.process_batch(midi_ref, &mut buffers.left, &mut buffers.right);
+            toof.process_batch(midi_ref, &mut buffers);
         })
     });
     c.bench_function(&format!("toof_process_no_filter"), |b| {
@@ -103,7 +103,7 @@ fn toof_benchmark(c: &mut Criterion) {
         ]);
         let midi_ref = black_box(&midi);
         b.iter(move || {
-            toof.process_batch(midi_ref, &mut buffers.left, &mut buffers.right);
+            toof.process_batch(midi_ref, &mut buffers);
         })
     });
 }

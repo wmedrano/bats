@@ -29,6 +29,16 @@ mod tests {
     use super::*;
 
     #[test]
+    fn selection_selects_right_item() {
+        let s = MenuSelection { selected_idx: 5 };
+        assert_eq!(
+            s.selection(0..10).map(|i| i.to_string()),
+            Some("5".to_string())
+        );
+        assert_eq!(s.selection(0..2).map(|i| i.to_string()), None);
+    }
+
+    #[test]
     fn move_selection_advances_selection() {
         let mut state = MenuSelection { selected_idx: 1 };
         state.move_selection(2, 100);

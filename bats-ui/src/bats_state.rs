@@ -26,15 +26,31 @@ pub struct BatsState {
     buffer_size: usize,
     /// The next unique id.
     next_id: u32,
+    /// Queue of commands.
+    command_queue: Vec<Command>,
 }
 
 /// Contains track details.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TrackDetails {
     pub id: u32,
     pub plugin_metadata: &'static Metadata,
     pub volume: f32,
     pub params: HashMap<u32, f32>,
+}
+
+impl Default for TrackDetails {
+    fn default() -> TrackDetails {
+        TrackDetails {
+            id: 0,
+            plugin_metadata: &Metadata {
+                name: "default_plugin",
+                params: &[],
+            },
+            volume: 1.0,
+            params: HashMap::new(),
+        }
+    }
 }
 
 impl TrackDetails {
@@ -69,6 +85,14 @@ impl BatsState {
             sample_rate: bats.sample_rate,
             buffer_size: bats.buffer_size,
             next_id,
+            command_queue: Vec::new(),
+        }
+    }
+
+    /// Flush all commands in the command queue.
+    pub fn flush_commands(&mut self) {
+        for c in self.command_queue.drain(..) {
+            self.commands.send(c);
         }
     }
 
@@ -89,7 +113,7 @@ impl BatsState {
             output: Buffers::new(self.buffer_size),
         };
         self.tracks.push(TrackDetails::new(&plugin));
-        self.commands.send(Command::AddTrack(plugin));
+        self.command_queue.push(Command::AddTrack(plugin));
         self.tracks.last().unwrap()
     }
 
@@ -101,14 +125,14 @@ impl BatsState {
     /// Set the armed plugin by id.
     pub fn set_armed(&mut self, armed: Option<u32>) {
         self.armed_track = armed;
-        self.commands.send(Command::SetArmedTrack(armed));
+        self.command_queue.push(Command::SetArmedTrack(armed));
     }
 
     pub fn set_track_volume(&mut self, track_id: u32, volume: f32) {
         if let Some(t) = self.tracks.iter_mut().find(|t| t.id == track_id) {
             t.volume = volume;
-            self.commands
-                .send(Command::SetTrackVolume { track_id, volume });
+            self.command_queue
+                .push(Command::SetTrackVolume { track_id, volume });
         }
     }
 
@@ -116,7 +140,7 @@ impl BatsState {
     pub fn set_bpm(&mut self, bpm: f32) {
         self.bpm = bpm;
         self.bpm_text = format_bpm(bpm);
-        self.commands.send(Command::SetMetronomeBpm(bpm));
+        self.command_queue.push(Command::SetMetronomeBpm(bpm));
     }
 
     // The current BPM.
@@ -130,8 +154,8 @@ impl BatsState {
     }
 
     /// Toggle the metronome.
-    pub fn toggle_metronome(&self) {
-        self.commands.send(Command::ToggleMetronome);
+    pub fn toggle_metronome(&mut self) {
+        self.command_queue.push(Command::ToggleMetronome);
     }
 
     /// Get all the tracks.
@@ -156,7 +180,7 @@ impl BatsState {
             None => error!("Could not find track {track_id} to set param {param_id} to {value}"),
             Some(t) => {
                 t.params.insert(param_id, value);
-                self.commands.send(Command::SetParam {
+                self.command_queue.push(Command::SetParam {
                     track_id,
                     param_id,
                     value,

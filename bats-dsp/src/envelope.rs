@@ -19,8 +19,8 @@ impl Default for EnvelopeParams {
     fn default() -> EnvelopeParams {
         EnvelopeParams {
             attack_delta: 1.0,
-            decay_delta: 1.0,
-            release_delta: 1.0,
+            decay_delta: -1.0,
+            release_delta: -1.0,
             sustain_amp: 1.0,
         }
     }
@@ -114,6 +114,15 @@ impl Envelope {
         self.amp
     }
 
+    /// Iterate through many samples.
+    pub fn iter_samples<'a>(
+        &'a mut self,
+        params: &'a EnvelopeParams,
+        count: usize,
+    ) -> impl 'a + ExactSizeIterator + Iterator<Item = f32> {
+        (0..count).map(|_| self.next_sample(params))
+    }
+
     /// Release the envelope and begin the release phase.
     pub fn release(&mut self, params: &EnvelopeParams) {
         self.amp = self.amp.min(params.sustain_amp);
@@ -123,5 +132,28 @@ impl Envelope {
     /// Returns true if the envelope is still active.
     pub fn is_active(&self) -> bool {
         self.stage != Stage::Done
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn is_active_until_release() {
+        let params = EnvelopeParams::default();
+        let base = Envelope::new();
+        {
+            let mut active = base;
+            for _ in active.iter_samples(&params, 1000) {}
+            assert!(active.is_active(), "{:?}", active);
+        }
+        {
+            let mut released = base.clone();
+            released.release(&params);
+            assert!(released.is_active(), "{:?}", released);
+            for _ in released.iter_samples(&params, 1000) {}
+            assert!(!released.is_active(), "{:?}", released);
+        }
     }
 }

@@ -45,9 +45,9 @@ struct ToofVoice {
     envelope: Envelope,
 }
 
-impl BatsInstrument for Toof {
+impl Toof {
     /// Create a new Toof plugin with the given sample rate.
-    fn new(sample_rate: SampleRate) -> Box<Toof> {
+    pub fn new(sample_rate: SampleRate) -> Box<Toof> {
         let envelope = EnvelopeParams::new(sample_rate, 0.005, 0.08, 0.4, 0.05);
         Box::new(Toof {
             bypass_filter: false,
@@ -60,7 +60,9 @@ impl BatsInstrument for Toof {
             voices: ArrayVec::new(),
         })
     }
+}
 
+impl BatsInstrument for Toof {
     /// The name of the plugin.
     fn metadata(&self) -> &'static Metadata {
         &Metadata {

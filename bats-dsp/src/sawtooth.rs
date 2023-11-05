@@ -41,3 +41,25 @@ impl Sawtooth {
         self.amplitude
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn generate_signals(sawtooth: Sawtooth) -> Vec<f32> {
+        let mut sawtooth = sawtooth;
+        (0..1024).map(|_| sawtooth.next_sample()).collect()
+    }
+
+    #[test]
+    fn sawtooth_output_depends_on_frequency() {
+        let a = Sawtooth::new(SampleRate::new(44100.0), 1000.0);
+        let b = {
+            let mut b = a.clone();
+            b.set_frequency(SampleRate::new(44100.0), 2000.0);
+            b
+        };
+        assert_eq!(generate_signals(a), generate_signals(a));
+        assert_ne!(generate_signals(a), generate_signals(b));
+    }
+}

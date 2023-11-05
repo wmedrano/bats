@@ -10,6 +10,8 @@ name = "benchmarks"
 harness = false
 
 [dependencies]
+anyhow = "1.0"
+hound = "3.5"
 
 [dev-dependencies]
 criterion = { version = "0.4", features = ["html_reports"], default_features = false }

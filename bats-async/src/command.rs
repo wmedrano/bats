@@ -103,9 +103,24 @@ impl Command {
 #[cfg(test)]
 mod tests {
     use bats_dsp::{buffers::Buffers, sample_rate::SampleRate};
-    use bats_lib::plugin::{toof::Toof, BatsInstrument};
+    use bats_lib::plugin::toof::Toof;
 
     use super::*;
+
+    fn get_track_volumes(b: &Bats) -> Vec<f32> {
+        b.tracks.iter().map(|t| t.volume).collect()
+    }
+
+    fn get_track_ids(b: &Bats) -> Vec<u32> {
+        b.tracks.iter().map(|t| t.id).collect()
+    }
+
+    #[test]
+    fn none_command_undo_is_none() {
+        let mut b = Bats::new(SampleRate::new(44100.0), 64);
+        let undo = Command::None.execute(&mut b);
+        assert_eq!(undo, Command::None);
+    }
 
     #[test]
     fn toggle_metronome_volume_toggles_volume() {
@@ -159,6 +174,29 @@ mod tests {
     }
 
     #[test]
+    fn remove_track_that_does_not_exist_does_nothing() {
+        let mut b = Bats::new(SampleRate::new(44100.0), 64);
+        b.tracks.push(Track {
+            id: 0,
+            plugin: Toof::new(b.sample_rate),
+            volume: 1.0,
+            output: Buffers::new(64),
+        });
+        b.tracks.push(Track {
+            id: 1,
+            plugin: Toof::new(b.sample_rate),
+            volume: 1.0,
+            output: Buffers::new(64),
+        });
+        assert_eq!(get_track_ids(&b), vec![0, 1]);
+        assert_eq!(
+            Command::RemoveTrack { id: 100 }.execute(&mut b),
+            Command::None
+        );
+        assert_eq!(get_track_ids(&b), vec![0, 1]);
+    }
+
+    #[test]
     fn set_armed_track() {
         let mut b = Bats::new(SampleRate::new(44100.0), 64);
         b.armed_track = None;
@@ -174,5 +212,55 @@ mod tests {
         let undo = Command::SetArmedTrack(None).execute(&mut b);
         assert_eq!(b.armed_track, None);
         assert_eq!(undo, Command::SetArmedTrack(Some(20)));
+    }
+
+    #[test]
+    fn set_track_volume_sets_volume() {
+        let mut b = Bats::new(SampleRate::new(44100.0), 64);
+        b.tracks.push(Track {
+            id: 10,
+            plugin: Toof::new(b.sample_rate),
+            volume: 0.1,
+            output: Buffers::new(64),
+        });
+        b.tracks.push(Track {
+            id: 20,
+            plugin: Toof::new(b.sample_rate),
+            volume: 0.2,
+            output: Buffers::new(64),
+        });
+        assert_eq!(get_track_volumes(&b), vec![0.1, 0.2]);
+        let undo = Command::SetTrackVolume {
+            track_id: 20,
+            volume: 0.3,
+        }
+        .execute(&mut b);
+        assert_eq!(
+            undo,
+            Command::SetTrackVolume {
+                track_id: 20,
+                volume: 0.2
+            }
+        );
+        assert_eq!(get_track_volumes(&b), vec![0.1, 0.3]);
+    }
+
+    #[test]
+    fn set_track_volume_on_track_that_does_not_exist_does_nothing() {
+        let mut b = Bats::new(SampleRate::new(44100.0), 64);
+        b.tracks.push(Track {
+            id: 10,
+            plugin: Toof::new(b.sample_rate),
+            volume: 0.1,
+            output: Buffers::new(64),
+        });
+        assert_eq!(get_track_volumes(&b), vec![0.1]);
+        let undo = Command::SetTrackVolume {
+            track_id: 20,
+            volume: 0.3,
+        }
+        .execute(&mut b);
+        assert_eq!(undo, Command::None);
+        assert_eq!(get_track_volumes(&b), vec![0.1]);
     }
 }

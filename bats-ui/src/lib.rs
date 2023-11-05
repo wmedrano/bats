@@ -1,13 +1,13 @@
 use anyhow::{anyhow, Result};
 use bats_async::CommandSender;
 use bats_lib::{
-    plugin::{metadata::ParamType, toof::Toof, BatsInstrument},
+    plugin::{metadata::ParamType, toof::Toof},
     Bats,
 };
 use bats_state::{BatsState, TrackDetails};
 use colors::ColorScheme;
 use frame_counter::FrameCounter;
-use log::{info, warn};
+use log::info;
 use sdl2::{event::Event, keyboard::Keycode, render::Canvas, video::Window, EventPump};
 use selection::MenuSelection;
 use text::TextRenderer;
@@ -20,16 +20,6 @@ pub mod frame_counter;
 pub mod param;
 pub mod selection;
 pub mod text;
-
-/// Options the user has requested for the window.
-#[derive(Debug, PartialEq)]
-enum ProgramRequest {
-    /// The user has (implicitly) requested to continue on the
-    /// program.
-    Continue,
-    /// The user has requested to exit the program.
-    Exit,
-}
 
 /// The current page.
 #[derive(Copy, Clone, Debug)]
@@ -64,6 +54,29 @@ pub struct Ui {
     bats_state: BatsState,
 }
 
+/// All user input events.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum BatsEvent {
+    /// The main menu button.
+    MainMenu,
+    /// The track menu button.
+    TrackMenu,
+    /// The metronome menu button.
+    MetronomeMenu,
+    /// Toggle metronome button.
+    ToggleMetronome,
+    /// The up arrow.
+    Up,
+    /// The down arrow.
+    Down,
+    /// The left arrow.
+    Left,
+    /// The right arrow.
+    Right,
+    /// The enter button.
+    Enter,
+}
+
 fn selected_track<'a>(
     track_selection: MenuSelection,
     tracks: impl Iterator<Item = &'a TrackDetails>,
@@ -72,7 +85,9 @@ fn selected_track<'a>(
 }
 
 impl Ui {
+    /// The minimum track volume value.
     pub const MIN_TRACK_VOLUME: f32 = 0.015625;
+    /// The maximum track volume value.
     pub const MAX_TRACK_VOLUME: f32 = 4.0;
 
     /// Create a new `Ui`.
@@ -111,8 +126,10 @@ impl Ui {
     /// Run the UI. This function will keep running until the user
     /// requests an exit.
     pub fn run(&mut self) -> Result<()> {
-        while self.handle_events() == ProgramRequest::Continue {
+        while let Some(events) = self.collect_events() {
+            self.handle_events(events);
             let frame_number = self.frame_counter.next_frame();
+            self.bats_state.flush_commands();
             self.render(frame_number);
         }
         Ok(())
@@ -122,118 +139,140 @@ impl Ui {
     ///
     /// Returns `ProgramRequest::Exit` if the user has requested that
     /// the program be exited.
-    fn handle_events(&mut self) -> ProgramRequest {
+    fn collect_events(&mut self) -> Option<Vec<BatsEvent>> {
+        let mut events = Vec::new();
         for event in self.event_pump.poll_iter() {
             match event {
-                Event::Quit { .. } => return ProgramRequest::Exit,
+                Event::Quit { .. } => return None,
                 Event::KeyDown {
                     keycode: Some(k), ..
-                } => match (self.page, k) {
-                    (_, Keycode::Escape) => self.page = Page::MainMenu,
-                    (Page::TracksMenu, Keycode::Up) => self
-                        .tracks_menu
-                        .move_selection(-1, self.bats_state.tracks().count() + 1),
-                    (Page::TracksMenu, Keycode::Down) => self
-                        .tracks_menu
-                        .move_selection(1, self.bats_state.tracks().count() + 1),
-                    (Page::TracksMenu, Keycode::Return) => {
-                        match selected_track(self.tracks_menu, self.bats_state.tracks()) {
-                            Some(t) => {
-                                self.bats_state.set_armed(Some(t.id));
-                                self.page = Page::Track {
-                                    selection: MenuSelection::default(),
-                                };
-                            }
-                            None => {
-                                let id = self
-                                    .bats_state
-                                    .add_plugin(Toof::new(self.bats_state.sample_rate))
-                                    .id;
-                                self.bats_state.set_armed(Some(id));
-                            }
-                        }
-                    }
-                    (Page::Track { mut selection }, Keycode::Up) => {
-                        selection.move_selection(
-                            -1,
-                            self.bats_state
-                                .selected_track()
-                                .map(|t| t.plugin_metadata.params.len())
-                                .unwrap_or(0),
-                        );
-                        self.page = Page::Track { selection };
-                    }
-                    (Page::Track { mut selection }, Keycode::Down) => {
-                        selection.move_selection(
-                            1,
-                            self.bats_state
-                                .selected_track()
-                                .map(|t| t.plugin_metadata.params.len())
-                                .unwrap_or(0),
-                        );
-                        self.page = Page::Track { selection };
-                    }
+                } => match k {
+                    Keycode::Escape => events.push(BatsEvent::MainMenu),
+                    Keycode::Left => events.push(BatsEvent::Left),
+                    Keycode::Right => events.push(BatsEvent::Right),
+                    Keycode::Up => events.push(BatsEvent::Up),
+                    Keycode::Down => events.push(BatsEvent::Down),
+                    Keycode::Return => events.push(BatsEvent::Enter),
                     _ => (),
                 },
-                Event::TextInput { text, .. } => match (self.page, text.as_str()) {
-                    (_, "M") => self.bats_state.toggle_metronome(),
-                    (_, "m") => self.page = Page::Metronome,
-                    (_, "t") => self.page = Page::TracksMenu,
-                    (_, "q") => return ProgramRequest::Exit,
-                    (Page::Metronome, "+") => self.bats_state.set_bpm(self.bats_state.bpm() + 0.5),
-                    (Page::Metronome, "-") => self.bats_state.set_bpm(self.bats_state.bpm() - 0.5),
-                    (Page::TracksMenu, "+") => {
-                        if let Some(t) = selected_track(self.tracks_menu, self.bats_state.tracks())
-                        {
-                            self.bats_state.set_track_volume(
-                                t.id,
-                                (t.volume * 1.05)
-                                    .clamp(Self::MIN_TRACK_VOLUME, Self::MAX_TRACK_VOLUME),
-                            );
-                        }
-                    }
-                    (Page::TracksMenu, "-") => {
-                        if let Some(t) = selected_track(self.tracks_menu, self.bats_state.tracks())
-                        {
-                            self.bats_state.set_track_volume(
-                                t.id,
-                                (t.volume / 1.05)
-                                    .clamp(Self::MIN_TRACK_VOLUME, Self::MAX_TRACK_VOLUME),
-                            );
-                        }
-                    }
-                    (Page::Track { selection }, "+") => {
-                        let track_id = self.bats_state.selected_track().unwrap().id;
-                        let params = self
-                            .bats_state
-                            .selected_track()
-                            .unwrap()
-                            .plugin_metadata
-                            .params;
-                        let param = params[selection.selected_idx];
-                        let value = (self.bats_state.param(track_id, param.id) * 1.05)
-                            .clamp(param.min_value, param.max_value);
-                        self.bats_state.set_param(track_id, param.id, value);
-                    }
-                    (Page::Track { selection }, "-") => {
-                        let track_id = self.bats_state.selected_track().unwrap().id;
-                        let params = self
-                            .bats_state
-                            .selected_track()
-                            .unwrap()
-                            .plugin_metadata
-                            .params;
-                        let param = params[selection.selected_idx];
-                        let value = (self.bats_state.param(track_id, param.id) / 1.05)
-                            .clamp(param.min_value, param.max_value);
-                        self.bats_state.set_param(track_id, param.id, value);
-                    }
-                    x => warn!("Unhandled input {:?}", x),
+                Event::TextInput { text, .. } => match text.as_str() {
+                    "M" => events.push(BatsEvent::ToggleMetronome),
+                    "m" => events.push(BatsEvent::MetronomeMenu),
+                    "t" => events.push(BatsEvent::TrackMenu),
+                    _ => (),
                 },
                 _ => (),
             }
         }
-        ProgramRequest::Continue
+        Some(events)
+    }
+
+    /// Handle all events in the queue.
+    ///
+    /// Returns `ProgramRequest::Exit` if the user has requested that
+    /// the program be exited.
+    fn handle_events(&mut self, events: Vec<BatsEvent>) {
+        let mut events = events;
+        for event in events.drain(..) {
+            match (self.page, event) {
+                (_, BatsEvent::MainMenu) => self.page = Page::MainMenu,
+                (_, BatsEvent::TrackMenu) => self.page = Page::TracksMenu,
+                (_, BatsEvent::MetronomeMenu) => self.page = Page::Metronome,
+                (_, BatsEvent::ToggleMetronome) => self.bats_state.toggle_metronome(),
+                (Page::Metronome, BatsEvent::Left) => {
+                    self.bats_state.set_bpm(self.bats_state.bpm() + 0.5)
+                }
+                (Page::Metronome, BatsEvent::Right) => {
+                    self.bats_state.set_bpm(self.bats_state.bpm() - 0.5)
+                }
+                (Page::TracksMenu, BatsEvent::Left) => {
+                    if let Some(t) = selected_track(self.tracks_menu, self.bats_state.tracks()) {
+                        self.bats_state.set_track_volume(
+                            t.id,
+                            (t.volume * 1.05).clamp(Self::MIN_TRACK_VOLUME, Self::MAX_TRACK_VOLUME),
+                        );
+                    }
+                }
+                (Page::TracksMenu, BatsEvent::Right) => {
+                    if let Some(t) = selected_track(self.tracks_menu, self.bats_state.tracks()) {
+                        self.bats_state.set_track_volume(
+                            t.id,
+                            (t.volume / 1.05).clamp(Self::MIN_TRACK_VOLUME, Self::MAX_TRACK_VOLUME),
+                        );
+                    }
+                }
+                (Page::TracksMenu, BatsEvent::Up) => self
+                    .tracks_menu
+                    .move_selection(-1, self.bats_state.tracks().count() + 1),
+                (Page::TracksMenu, BatsEvent::Down) => self
+                    .tracks_menu
+                    .move_selection(1, self.bats_state.tracks().count() + 1),
+                (Page::TracksMenu, BatsEvent::Enter) => {
+                    match selected_track(self.tracks_menu, self.bats_state.tracks()) {
+                        Some(t) => {
+                            self.bats_state.set_armed(Some(t.id));
+                            self.page = Page::Track {
+                                selection: MenuSelection::default(),
+                            };
+                        }
+                        None => {
+                            let id = self
+                                .bats_state
+                                .add_plugin(Toof::new(self.bats_state.sample_rate))
+                                .id;
+                            self.bats_state.set_armed(Some(id));
+                        }
+                    }
+                }
+                (Page::Track { mut selection }, BatsEvent::Up) => {
+                    selection.move_selection(
+                        -1,
+                        self.bats_state
+                            .selected_track()
+                            .map(|t| t.plugin_metadata.params.len())
+                            .unwrap_or(0),
+                    );
+                    self.page = Page::Track { selection };
+                }
+                (Page::Track { mut selection }, BatsEvent::Down) => {
+                    selection.move_selection(
+                        1,
+                        self.bats_state
+                            .selected_track()
+                            .map(|t| t.plugin_metadata.params.len())
+                            .unwrap_or(0),
+                    );
+                    self.page = Page::Track { selection };
+                }
+                (Page::Track { selection }, BatsEvent::Right) => {
+                    let track_id = self.bats_state.selected_track().unwrap().id;
+                    let params = self
+                        .bats_state
+                        .selected_track()
+                        .unwrap()
+                        .plugin_metadata
+                        .params;
+                    let param = params[selection.selected_idx];
+                    let value = (self.bats_state.param(track_id, param.id) * 1.05)
+                        .clamp(param.min_value, param.max_value);
+                    self.bats_state.set_param(track_id, param.id, value);
+                }
+                (Page::Track { selection }, BatsEvent::Left) => {
+                    let track_id = self.bats_state.selected_track().unwrap().id;
+                    let params = self
+                        .bats_state
+                        .selected_track()
+                        .unwrap()
+                        .plugin_metadata
+                        .params;
+                    let param = params[selection.selected_idx];
+                    let value = (self.bats_state.param(track_id, param.id) / 1.05)
+                        .clamp(param.min_value, param.max_value);
+                    self.bats_state.set_param(track_id, param.id, value);
+                }
+                _ => (),
+            }
+        }
     }
 
     /// Render a new frame and present it. It should be automatically

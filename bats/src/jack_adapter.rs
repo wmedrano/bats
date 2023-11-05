@@ -95,7 +95,7 @@ impl jack::ProcessHandler for ProcessHandler {
                 }
             }
         }
-        self.commands.execute_all(&mut self.bats);
+        for _undo in self.commands.execute_all(&mut self.bats) {}
         self.bats.process(
             self.midi_buffer.as_slice(),
             self.ports.left.as_mut_slice(ps),
@@ -132,11 +132,21 @@ impl jack::NotificationHandler for NotificationHandler {
         jack::Control::Continue
     }
 
-    fn client_registration(&mut self, _: &jack::Client, name: &str, _is_registered: bool) {
-        info!("JACK client {name} was registered");
+    fn client_registration(&mut self, _: &jack::Client, name: &str, is_registered: bool) {
+        let registration_text = if is_registered {
+            "registered"
+        } else {
+            "unregistered"
+        };
+        info!("JACK client {name} was {registration_text}.");
     }
 
     fn port_registration(&mut self, c: &jack::Client, port_id: jack::PortId, is_registered: bool) {
+        let registration_text = if is_registered {
+            "registered"
+        } else {
+            "unregistered"
+        };
         let port = match c.port_by_id(port_id) {
             Some(p) => p,
             None => {
@@ -145,14 +155,7 @@ impl jack::NotificationHandler for NotificationHandler {
             }
         };
         let name = port.name().unwrap_or_else(|err| format!("Error{}", err));
-        info!(
-            "Port {}: Port(id={port_id}, name={name})",
-            if is_registered {
-                "registered"
-            } else {
-                "unregistered"
-            }
-        );
+        info!("Port {registration_text}: Port(id={port_id}, name={name})");
     }
 
     fn port_rename(
