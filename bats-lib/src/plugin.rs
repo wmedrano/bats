@@ -23,8 +23,14 @@ pub trait BatsInstrument {
     /// Set a parameter.
     fn set_param(&mut self, id: u32, value: f32);
 
+    /// Run any batch cleanup operations.
+    fn batch_cleanup(&mut self) {}
+
     /// Handle processing of `midi_in` and output to `left_out` and
     /// `right_out`.
+    ///
+    /// Prefer using this default behavior unless benchmarking shows significant performance
+    /// improvements.
     fn process_batch(
         &mut self,
         midi_in: &[(u32, wmidi::MidiMessage<'static>)],
@@ -38,6 +44,7 @@ pub trait BatsInstrument {
             }
             output.set(i, self.process())
         }
+        self.batch_cleanup();
     }
 }
 
@@ -45,7 +52,6 @@ pub trait BatsInstrumentExt: BatsInstrument {
     /// Handle processing of `midi_in` and return the results. This is
     /// often less efficient but is included for less performance
     /// critical use cases like unit tests.
-    #[cold]
     fn process_to_buffers(
         &mut self,
         sample_count: usize,
@@ -57,7 +63,6 @@ pub trait BatsInstrumentExt: BatsInstrument {
     }
 
     /// Set a parameter value.
-    #[cold]
     fn set_param_by_name(&mut self, name: &'static str, value: f32) -> anyhow::Result<()> {
         let metadata = self.metadata();
         let param = match metadata.params.iter().find(|p| p.name == name) {

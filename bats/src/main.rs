@@ -10,13 +10,8 @@ use crate::jack_adapter::NotificationHandler;
 pub mod args;
 pub mod jack_adapter;
 
-fn main() {
-    let res = run_main(args::Args::parse());
-    // TODO: Change to bad exit code if error is anything other than exit with C-c requested.
-    info!("Exiting with: {:?}", res);
-}
-
-fn run_main(args: args::Args) -> Result<()> {
+fn main() -> Result<()> {
+    let args = args::Args::parse();
     env_logger::builder()
         .filter_level(args.log_level)
         .try_init()

@@ -60,17 +60,17 @@ pub trait Menu {
 type SelectorEventHandler<'a, T> = dyn 'a + FnMut(Event, &T) -> MenuAction<T>;
 
 /// A basic menu that selects an item of type `T`.
-pub struct SelectorMenu<'a, T, F> {
+pub struct SelectorMenu<'a, T, F, A: AsRef<[T]>> {
     title: String,
-    selection: Selector<T>,
+    selection: Selector<T, A>,
     formatter: F,
     extra_event_handler: Box<SelectorEventHandler<'a, T>>,
 }
 
-impl<'a, T, F> SelectorMenu<'a, T, F> {
+impl<'a, T, F, A: AsRef<[T]>> SelectorMenu<'a, T, F, A> {
     /// Create a new menu with the given title and items. `formatter` is used to convert an item of
     /// type `T` into a human readable menu option.
-    pub fn new(title: String, items: Vec<T>, formatter: F) -> SelectorMenu<'static, T, F> {
+    pub fn new(title: String, items: A, formatter: F) -> SelectorMenu<'static, T, F, A> {
         SelectorMenu {
             title,
             selection: Selector::new(items),
@@ -84,7 +84,7 @@ impl<'a, T, F> SelectorMenu<'a, T, F> {
     pub fn with_extra_event_handler<'b>(
         self,
         handler: impl 'b + FnMut(Event, &T) -> MenuAction<T>,
-    ) -> SelectorMenu<'b, T, F> {
+    ) -> SelectorMenu<'b, T, F, A> {
         SelectorMenu {
             title: self.title,
             selection: self.selection,
@@ -99,7 +99,7 @@ impl<'a, T, F> SelectorMenu<'a, T, F> {
     }
 }
 
-impl<'a, T: Clone, F: Fn(&T) -> String> Menu for SelectorMenu<'a, T, F> {
+impl<'a, T: Clone, F: Fn(&T) -> String, A: AsRef<[T]>> Menu for SelectorMenu<'a, T, F, A> {
     type Item = T;
 
     fn handle_event(&mut self, event: Event) -> Result<MenuAction<Self::Item>> {

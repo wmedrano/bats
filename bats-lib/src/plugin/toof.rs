@@ -111,7 +111,6 @@ impl BatsInstrument for Toof {
             .iter_mut()
             .map(|v| v.next_sample(&self.envelope))
             .sum();
-        self.voices.retain(|v| v.envelope.is_active());
         if self.bypass_filter {
             (v, v)
         } else {
@@ -121,7 +120,6 @@ impl BatsInstrument for Toof {
     }
 
     /// Handle a midi event.
-    #[cold]
     fn handle_midi(&mut self, msg: &MidiMessage) {
         match msg {
             MidiMessage::NoteOff(_, note, _) | MidiMessage::NoteOn(_, note, U7::MIN) => {
@@ -134,7 +132,10 @@ impl BatsInstrument for Toof {
             MidiMessage::NoteOn(_, note, _) => {
                 if self.is_polyphonic || self.voices.is_empty() {
                     if self.voices.is_full() {
-                        self.voices.remove(0);
+                        self.voices.retain(|v| v.envelope.is_active());
+                        if self.voices.is_full() {
+                            self.voices.remove(0);
+                        }
                     }
                     self.voices.push(ToofVoice::new(self.sample_rate, *note));
                 } else {
@@ -190,6 +191,11 @@ impl BatsInstrument for Toof {
             }
             _ => (),
         }
+    }
+
+    /// Clean up any inactive voices.
+    fn batch_cleanup(&mut self) {
+        self.voices.retain(|v| v.envelope.is_active());
     }
 }
 

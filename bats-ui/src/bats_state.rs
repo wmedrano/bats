@@ -148,8 +148,8 @@ impl BatsState {
     }
 
     /// Get all the tracks.
-    pub fn tracks(&self) -> impl '_ + Iterator<Item = &TrackDetails> {
-        self.tracks.iter()
+    pub fn tracks(&self) -> &[TrackDetails; Bats::SUPPORTED_TRACKS] {
+        &self.tracks
     }
 
     /// Get a track by its id.
