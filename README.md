@@ -24,7 +24,7 @@ A polyphonic sawtooth wave instrument.
 Building
 --------
 
-Bats is built with the `cargo build` command. To build and run the relase version, run `cargo run --release`. The required dependencies to build Bats are libraries and development libraries for `jack`, `sdl2`, and `sdl2-ttf`. See the "Building" section of `./.github/workflows/testing.yml` for the specific dependencies on Ubuntu Linux.
+Bats is built with the `cargo build` command. To build and run the relase version, run `cargo run --release`. The required dependencies to build Bats are libraries and development libraries for `jack`. See the "Building" section of `./.github/workflows/testing.yml` for the specific dependencies on Ubuntu Linux.
 
 Tools
 -----

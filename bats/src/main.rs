@@ -10,14 +10,18 @@ use crate::jack_adapter::NotificationHandler;
 pub mod args;
 pub mod jack_adapter;
 
-fn main() -> Result<()> {
-    let args = args::Args::parse();
-    info!("Pared args: {:?}", args);
+fn main() {
+    let res = run_main(args::Args::parse());
+    // TODO: Change to bad exit code if error is anything other than exit with C-c requested.
+    info!("Exiting with: {:?}", res);
+}
 
+fn run_main(args: args::Args) -> Result<()> {
     env_logger::builder()
         .filter_level(args.log_level)
         .try_init()
         .unwrap();
+    info!("Parsed args: {:?}", args);
     info!("Current Dir: {:?}", std::env::current_dir().unwrap(),);
     info!("Raw args: {:?}", std::env::args());
     info!("Pared args: {:?}", args);

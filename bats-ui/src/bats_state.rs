@@ -1,45 +1,40 @@
 use std::collections::HashMap;
 
 use bats_async::{command::Command, CommandSender};
-use bats_dsp::{buffers::Buffers, sample_rate::SampleRate};
+use bats_dsp::sample_rate::SampleRate;
 use bats_lib::{
     plugin::{metadata::Metadata, toof::Toof, BatsInstrument},
     Bats, Track,
 };
-use log::error;
+use log::{error, info};
 
 /// Contains state for dealing with
 pub struct BatsState {
-    /// Used to send commands to bats.
-    commands: CommandSender,
-    /// The armed track.
-    armed_track: Option<u32>,
-    /// The current BPM.
-    bpm: f32,
-    /// The current BPM as a string.
-    bpm_text: String,
-    /// Details for the current tracks.
-    tracks: Vec<TrackDetails>,
     /// The sample rate.
     pub sample_rate: SampleRate,
     /// The buffer size.
-    buffer_size: usize,
-    /// The next unique id.
-    next_id: u32,
-    /// Queue of commands.
-    command_queue: Vec<Command>,
+    pub buffer_size: usize,
+    /// Used to send commands to bats.
+    commands: CommandSender,
+    /// The armed track.
+    armed_track: usize,
+    /// The current BPM.
+    bpm: f32,
+    /// Details for all the tracks.
+    tracks: [TrackDetails; Bats::SUPPORTED_TRACKS],
 }
 
 /// Contains track details.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TrackDetails {
-    pub id: u32,
+    pub id: usize,
     pub plugin_metadata: &'static Metadata,
     pub volume: f32,
     pub params: HashMap<u32, f32>,
 }
 
 impl Default for TrackDetails {
+    /// Create a placeholder entry for `TrackDetails`.
     fn default() -> TrackDetails {
         TrackDetails {
             id: 0,
@@ -55,19 +50,28 @@ impl Default for TrackDetails {
 
 impl TrackDetails {
     /// Create a new `PluginDetails` from a `PluginInstance`.
-    fn new(t: &Track) -> TrackDetails {
-        let plugin_metadata = t.plugin.metadata();
+    fn new(id: usize, t: &Track) -> TrackDetails {
+        let plugin_metadata = plugin_metadata(&t.plugin);
         let params = plugin_metadata
             .params
             .iter()
             .map(|p| (p.id, p.default_value))
             .collect();
         TrackDetails {
-            id: t.id,
+            id,
             plugin_metadata,
             volume: t.volume,
             params,
         }
+    }
+
+    /// Return the human readable title of the track.
+    pub fn title(&self) -> String {
+        format!(
+            "{track_number} - {plugin_name}",
+            track_number = self.id + 1,
+            plugin_name = self.plugin_metadata.name
+        )
     }
 }
 
@@ -75,72 +79,62 @@ impl BatsState {
     /// Create a new `BatsState`.
     pub fn new(bats: &Bats, commands: CommandSender) -> BatsState {
         let bpm = bats.metronome.bpm();
-        let next_id = bats.tracks.iter().map(|p| p.id).max().unwrap_or(0) + 1;
+        let tracks = core::array::from_fn(|idx| TrackDetails::new(idx, &bats.tracks[idx]));
+        let armed_track = bats.armed_track;
         BatsState {
             commands,
-            armed_track: None,
+            armed_track,
             bpm,
-            bpm_text: format_bpm(bpm),
-            tracks: bats.tracks.iter().map(TrackDetails::new).collect(),
+            tracks,
             sample_rate: bats.sample_rate,
             buffer_size: bats.buffer_size,
-            next_id,
-            command_queue: Vec::new(),
         }
     }
 
-    /// Flush all commands in the command queue.
-    pub fn flush_commands(&mut self) {
-        for c in self.command_queue.drain(..) {
-            self.commands.send(c);
+    /// Set the plugin for the track.
+    pub fn set_plugin(&mut self, track_id: usize, plugin: Option<Box<Toof>>) {
+        info!(
+            "Setting track {track_id} plugin to {plugin_name}.",
+            plugin_name = plugin.as_ref().map(|p| p.metadata().name).unwrap_or("")
+        );
+        match self.tracks.get_mut(track_id) {
+            None => {
+                error!("Could not find track with id {track_id}.");
+            }
+            Some(track) => {
+                track.plugin_metadata = plugin_metadata(&plugin);
+                track.params = param_values(&plugin);
+                self.commands.send(Command::SetPlugin { track_id, plugin });
+            }
         }
-    }
-
-    /// Take the next unique id.
-    fn take_id(&mut self) -> u32 {
-        let id = self.next_id;
-        self.next_id += 1;
-        id
-    }
-
-    /// Add a new plugin.
-    pub fn add_plugin(&mut self, plugin: Box<Toof>) -> &TrackDetails {
-        let id = self.take_id();
-        let plugin = Track {
-            id,
-            plugin,
-            volume: 1.0,
-            output: Buffers::new(self.buffer_size),
-        };
-        self.tracks.push(TrackDetails::new(&plugin));
-        self.command_queue.push(Command::AddTrack(plugin));
-        self.tracks.last().unwrap()
     }
 
     /// Return the currently armed track.
-    pub fn armed(&mut self) -> Option<u32> {
+    pub fn armed(&mut self) -> usize {
         self.armed_track
     }
 
     /// Set the armed plugin by id.
-    pub fn set_armed(&mut self, armed: Option<u32>) {
+    pub fn set_armed(&mut self, armed: usize) {
         self.armed_track = armed;
-        self.command_queue.push(Command::SetArmedTrack(armed));
+        self.commands.send(Command::SetArmedTrack(self.armed_track));
     }
 
-    pub fn set_track_volume(&mut self, track_id: u32, volume: f32) {
-        if let Some(t) = self.tracks.iter_mut().find(|t| t.id == track_id) {
-            t.volume = volume;
-            self.command_queue
-                .push(Command::SetTrackVolume { track_id, volume });
+    /// Set the track volume.
+    pub fn modify_track_volume(&mut self, track_id: usize, f: impl Fn(&TrackDetails) -> f32) {
+        if let Some(t) = self.tracks.get_mut(track_id) {
+            t.volume = f(t).clamp(0.00796, 4.0);
+            self.commands.send(Command::SetTrackVolume {
+                track_id,
+                volume: t.volume,
+            });
         }
     }
 
     /// Set the bpm.
     pub fn set_bpm(&mut self, bpm: f32) {
         self.bpm = bpm;
-        self.bpm_text = format_bpm(bpm);
-        self.command_queue.push(Command::SetMetronomeBpm(bpm));
+        self.commands.send(Command::SetMetronomeBpm(bpm));
     }
 
     // The current BPM.
@@ -148,14 +142,9 @@ impl BatsState {
         self.bpm
     }
 
-    /// The current BPM as text.
-    pub fn bpm_text(&self) -> &str {
-        &self.bpm_text
-    }
-
     /// Toggle the metronome.
     pub fn toggle_metronome(&mut self) {
-        self.command_queue.push(Command::ToggleMetronome);
+        self.commands.send(Command::ToggleMetronome);
     }
 
     /// Get all the tracks.
@@ -163,33 +152,85 @@ impl BatsState {
         self.tracks.iter()
     }
 
-    /// Get the currently selected track.
-    pub fn selected_track(&self) -> Option<&TrackDetails> {
-        self.tracks.iter().find(|t| Some(t.id) == self.armed_track)
+    /// Get a track by its id.
+    pub fn track_by_id(&self, track_id: usize) -> Option<&TrackDetails> {
+        self.tracks.get(track_id)
     }
 
-    pub fn param(&self, track_id: u32, param_id: u32) -> f32 {
-        match self.tracks.iter().find(|t| t.id == track_id) {
-            None => 0.0,
-            Some(t) => t.params.get(&param_id).copied().unwrap_or(0.0),
-        }
-    }
-
-    pub fn set_param(&mut self, track_id: u32, param_id: u32, value: f32) {
-        match self.tracks.iter_mut().find(|t| t.id == track_id) {
-            None => error!("Could not find track {track_id} to set param {param_id} to {value}"),
-            Some(t) => {
-                t.params.insert(param_id, value);
-                self.command_queue.push(Command::SetParam {
-                    track_id,
-                    param_id,
-                    value,
-                });
+    /// Get the param value for the given `param_id` for `track_id`.
+    pub fn param(&self, track_id: usize, param_id: u32) -> f32 {
+        let track = match self.tracks.get(track_id) {
+            Some(t) => t,
+            None => {
+                error!("Attempted to get track for invalid track id {track_id}.");
+                return 0.0;
             }
-        }
+        };
+        let get_default_value = || match track
+            .plugin_metadata
+            .params
+            .iter()
+            .find(|p| p.id == param_id)
+        {
+            None => 0.0,
+            Some(p) => p.default_value,
+        };
+        track
+            .params
+            .get(&param_id)
+            .copied()
+            .unwrap_or_else(get_default_value)
+    }
+
+    /// Modify the param value by applying `f`. This function also handles keeping the param valid,
+    /// like adjusting according to the min and max values.
+    pub fn modify_param(&mut self, track_id: usize, param_id: u32, f: impl Fn(f32) -> f32) {
+        let track = match self.tracks.get_mut(track_id) {
+            None => {
+                error!("Could not find track {track_id} to modify param {param_id}.");
+                return;
+            }
+            Some(t) => t,
+        };
+        let param = match track
+            .plugin_metadata
+            .params
+            .iter()
+            .find(|p| p.id == param_id)
+        {
+            Some(p) => p,
+            None => {
+                error!(
+                    "Could not find param with id {param_id} for track with plugin {plugin_name}.",
+                    plugin_name = track.plugin_metadata.name
+                );
+                return;
+            }
+        };
+        let current_value = *track.params.get(&param_id).unwrap();
+        let value = f(current_value).clamp(param.min_value, param.max_value);
+        track.params.insert(param_id, value);
+        self.commands.send(Command::SetParam {
+            track_id,
+            param_id,
+            value,
+        });
     }
 }
 
-fn format_bpm(bpm: f32) -> String {
-    format!("{:.1}", bpm)
+/// Get the map from `param_id` to the parameter value.
+fn param_values(p: &Option<Box<Toof>>) -> HashMap<u32, f32> {
+    plugin_metadata(p)
+        .params
+        .iter()
+        .map(|p| (p.id, p.default_value))
+        .collect()
+}
+
+/// Get the metadata for the given plugin.
+fn plugin_metadata(p: &Option<Box<Toof>>) -> &'static Metadata {
+    p.as_ref().map(|p| p.metadata()).unwrap_or(&Metadata {
+        name: "empty",
+        params: &[],
+    })
 }

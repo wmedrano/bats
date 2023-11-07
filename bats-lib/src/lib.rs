@@ -20,38 +20,51 @@ pub struct Bats {
     /// position.
     transport: Vec<Position>,
     /// The id of the track that should take user midi input.
-    pub armed_track: Option<u32>,
-    /// The active track.
-    pub tracks: Vec<Track>,
+    pub armed_track: usize,
     /// The sample rate.
     pub sample_rate: SampleRate,
+    /// The buffer size.
     pub buffer_size: usize,
+    /// The tracks.
+    pub tracks: [Track; Bats::SUPPORTED_TRACKS],
 }
 
 /// An plugin with output buffers.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Track {
-    /// The id for this track instance.
-    pub id: u32,
     /// The plugin.
-    pub plugin: Box<Toof>,
+    pub plugin: Option<Box<Toof>>,
     /// The track volume.
     pub volume: f32,
     /// The buffers to output data to.
     pub output: Buffers,
 }
 
+impl Track {
+    /// Create a new track.
+    pub fn new(buffer_size: usize) -> Track {
+        Track {
+            plugin: None,
+            volume: 1.0,
+            output: Buffers::new(buffer_size),
+        }
+    }
+}
+
 impl Bats {
+    /// The number of supported tracks.
+    pub const SUPPORTED_TRACKS: usize = 8;
+
     /// Create a new `Bats` object.
     pub fn new(sample_rate: SampleRate, buffer_size: usize) -> Bats {
         Bats {
             metronome: Metronome::new(sample_rate, 120.0),
             metronome_volume: 0.0,
             transport: Vec::with_capacity(buffer_size + 1),
-            armed_track: None,
-            tracks: Vec::with_capacity(16),
+            armed_track: 0,
             sample_rate,
             buffer_size,
+            tracks: core::array::from_fn(|_| Track::new(buffer_size)),
         }
     }
 
@@ -71,13 +84,11 @@ impl Bats {
             right,
             &mut self.transport,
         );
-        for track in self.tracks.iter_mut() {
-            let midi = if Some(track.id) == self.armed_track {
-                midi
-            } else {
-                &[]
-            };
-            track.plugin.process_batch(midi, &mut track.output);
+        for (id, track) in self.tracks.iter_mut().enumerate() {
+            let midi = if id == self.armed_track { midi } else { &[] };
+            if let Some(p) = track.plugin.as_mut() {
+                p.process_batch(midi, &mut track.output);
+            }
             mix(left, &track.output.left, track.volume);
             mix(right, &track.output.right, track.volume);
         }
@@ -131,6 +142,7 @@ fn process_metronome(
     }
 }
 
+/// Mix `src` onto `dst` weighted by `volume`.
 fn mix(dst: &mut [f32], src: &[f32], volume: f32) {
     for (d, s) in dst.iter_mut().zip(src.iter()) {
         *d += volume * s;
@@ -180,13 +192,12 @@ mod tests {
     fn midi_without_arm_remains_silent() {
         let sample_count = 3;
         let mut b = Bats::new(SampleRate::new(44100.0), sample_count);
-        b.tracks.push(Track {
-            id: 1,
-            plugin: Toof::new(SampleRate::new(44100.0)),
+        b.tracks[0] = Track {
+            plugin: Some(Toof::new(SampleRate::new(44100.0))),
             volume: 1.0,
             output: Buffers::new(sample_count),
-        });
-        b.armed_track = None;
+        };
+        b.armed_track = 100;
         let buffers = b.process_to_buffer(
             sample_count,
             &[(
@@ -207,13 +218,12 @@ mod tests {
     fn midi_and_armed_produces_sound() {
         let sample_count = 3;
         let mut b = Bats::new(SampleRate::new(44100.0), sample_count);
-        b.tracks.push(Track {
-            id: 1,
-            plugin: Toof::new(SampleRate::new(44100.0)),
+        b.tracks[0] = Track {
+            plugin: Toof::new(SampleRate::new(44100.0)).into(),
             volume: 1.0,
             output: Buffers::new(sample_count),
-        });
-        b.armed_track = Some(1);
+        };
+        b.armed_track = 0;
         let buffers = b.process_to_buffer(
             sample_count,
             &[(

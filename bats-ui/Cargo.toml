@@ -10,5 +10,6 @@ anyhow = "1.0.75"
 bats-async = { path = "../bats-async" }
 bats-dsp = { path = "../bats-dsp" }
 bats-lib = { path = "../bats-lib" }
+crossterm = "0.27.0"
 log = "0.4"
-sdl2 = { version = "0.35", features = ["ttf"] }
+ratatui = "0.24.0"

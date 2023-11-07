@@ -79,7 +79,7 @@ impl BatsInstrument for Toof {
                 Param {
                     id: 2,
                     name: "filter cutoff",
-                    param_type: ParamType::Float,
+                    param_type: ParamType::Frequency,
                     default_value: MoogFilter::DEFAULT_FREQUENCY_CUTOFF,
                     min_value: 50.0,
                     max_value: 9000.0,

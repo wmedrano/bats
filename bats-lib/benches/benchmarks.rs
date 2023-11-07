@@ -1,8 +1,5 @@
 use bats_dsp::{buffers::Buffers, sample_rate::SampleRate};
-use bats_lib::{
-    plugin::{toof::Toof, BatsInstrument, BatsInstrumentExt},
-    Track,
-};
+use bats_lib::plugin::{toof::Toof, BatsInstrument, BatsInstrumentExt};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use wmidi::{Channel, MidiMessage, Note, U7};
 
@@ -32,13 +29,8 @@ fn bats_benchmark(c: &mut Criterion) {
             SampleRate::new(SAMPLE_RATE),
             BUFFER_SIZE,
         ));
-        for i in 0..8 {
-            bats.tracks.push(Track {
-                id: i as u32,
-                volume: 1.0,
-                plugin: Toof::new(SampleRate::new(SAMPLE_RATE)),
-                output: Buffers::new(BUFFER_SIZE),
-            });
+        for track in bats.tracks.iter_mut().take(8) {
+            track.plugin = Toof::new(bats.sample_rate).into();
         }
         let mut buffers = black_box(Buffers::new(BUFFER_SIZE));
         let midi = black_box([
