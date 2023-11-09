@@ -22,6 +22,8 @@ pub enum ParamType {
     Percent,
     /// A frequency represented in Hz or kHz.
     Frequency,
+    /// A duration.
+    Duration,
 }
 
 /// A single parameter.
@@ -39,6 +41,18 @@ pub struct Param {
     pub min_value: f32,
     /// The maximum value.
     pub max_value: f32,
+}
+
+impl Metadata {
+    /// Get the parameter by name.
+    pub fn param_by_name(&self, name: &str) -> Option<&Param> {
+        self.params.iter().find(|p| p.name == name)
+    }
+
+    /// Get the paramter by id.
+    pub fn param_by_id(&self, id: u32) -> Option<&Param> {
+        self.params.iter().find(|p| p.id == id)
+    }
 }
 
 impl Param {
@@ -89,6 +103,11 @@ impl Display for ParamFormatter {
                     write!(f, "{k_freq:.2} kHz", k_freq = self.value / 1000.0)
                 }
             }
+            ParamType::Duration => match self.value {
+                v if v < 0.01 => write!(f, "{msec:.1}ms", msec = v * 1000.0),
+                v if v < 1.0 => write!(f, "{msec:.0}ms", msec = v * 1000.0),
+                v => write!(f, "{sec:.1}s", sec = v),
+            },
         }
     }
 }

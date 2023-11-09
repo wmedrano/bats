@@ -11,7 +11,7 @@ use events::EventPoll;
 use log::info;
 use menu::{Menu, MenuAction, SelectorMenu};
 use plugin_factory::PluginBuilder;
-use ratatui::{prelude::CrosstermBackend, Terminal};
+use ratatui::{prelude::CrosstermBackend, style::Color, Terminal};
 
 pub mod bats_state;
 pub mod events;
@@ -241,7 +241,8 @@ impl Ui {
                 MenuAction::Redraw
             }
             _ => MenuAction::None,
-        });
+        })
+        .with_color(Color::Blue);
         menu.run(event_poll, terminal)?;
         Ok(())
     }

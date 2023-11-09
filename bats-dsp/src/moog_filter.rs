@@ -77,3 +77,23 @@ impl MoogFilter {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::sawtooth::Sawtooth;
+
+    use super::*;
+
+    #[test]
+    // # TODO: Test that input is indeed filtered.
+    fn moog_filter_process() {
+        let sample_rate = SampleRate::new(44100.0);
+        let mut wave = Sawtooth::new(sample_rate, 440.0);
+        let input: Vec<_> = std::iter::repeat_with(|| wave.next_sample())
+            .take(44100)
+            .collect();
+        let mut output = input.clone();
+        MoogFilter::new(sample_rate).process_batch(output.as_mut_slice());
+        assert_ne!(output.as_slice(), input.as_slice());
+    }
+}

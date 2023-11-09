@@ -65,7 +65,7 @@ pub trait BatsInstrumentExt: BatsInstrument {
     /// Set a parameter value.
     fn set_param_by_name(&mut self, name: &'static str, value: f32) -> anyhow::Result<()> {
         let metadata = self.metadata();
-        let param = match metadata.params.iter().find(|p| p.name == name) {
+        let param = match metadata.param_by_name(name) {
             None => {
                 return Err(anyhow!(
                     "Plugin {} not found. Valid values are: {:?}",

@@ -52,11 +52,7 @@ impl TrackDetails {
     /// Create a new `PluginDetails` from a `PluginInstance`.
     fn new(id: usize, t: &Track) -> TrackDetails {
         let plugin_metadata = plugin_metadata(&t.plugin);
-        let params = plugin_metadata
-            .params
-            .iter()
-            .map(|p| (p.id, p.default_value))
-            .collect();
+        let params = param_values(&t.plugin);
         TrackDetails {
             id,
             plugin_metadata,
@@ -166,12 +162,7 @@ impl BatsState {
                 return 0.0;
             }
         };
-        let get_default_value = || match track
-            .plugin_metadata
-            .params
-            .iter()
-            .find(|p| p.id == param_id)
-        {
+        let get_default_value = || match track.plugin_metadata.param_by_id(param_id) {
             None => 0.0,
             Some(p) => p.default_value,
         };
@@ -192,12 +183,7 @@ impl BatsState {
             }
             Some(t) => t,
         };
-        let param = match track
-            .plugin_metadata
-            .params
-            .iter()
-            .find(|p| p.id == param_id)
-        {
+        let param = match track.plugin_metadata.param_by_id(param_id) {
             Some(p) => p,
             None => {
                 error!(
@@ -223,7 +209,13 @@ fn param_values(p: &Option<Box<Toof>>) -> HashMap<u32, f32> {
     plugin_metadata(p)
         .params
         .iter()
-        .map(|p| (p.id, p.default_value))
+        .map(|param| {
+            let value = p
+                .as_ref()
+                .map(|plugin| plugin.param(param.id))
+                .unwrap_or(param.default_value);
+            (param.id, value)
+        })
         .collect()
 }
 

@@ -72,9 +72,9 @@ impl BatsInstrument for Toof {
                     id: 1,
                     name: "bypass filter",
                     param_type: ParamType::Bool,
-                    default_value: 0.45,
-                    min_value: 0.45,
-                    max_value: 0.55,
+                    default_value: 0.49,
+                    min_value: 0.49,
+                    max_value: 0.51,
                 },
                 Param {
                     id: 2,
@@ -96,9 +96,41 @@ impl BatsInstrument for Toof {
                     id: 4,
                     name: "polyphonic",
                     param_type: ParamType::Bool,
-                    default_value: 0.45,
-                    min_value: 0.45,
-                    max_value: 0.55,
+                    default_value: 0.49,
+                    min_value: 0.49,
+                    max_value: 0.51,
+                },
+                Param {
+                    id: 5,
+                    name: "attack",
+                    param_type: ParamType::Duration,
+                    default_value: 0.01,
+                    min_value: 0.001,
+                    max_value: 2.0,
+                },
+                Param {
+                    id: 6,
+                    name: "decay",
+                    param_type: ParamType::Duration,
+                    default_value: 1.0,
+                    min_value: 0.001,
+                    max_value: 2.0,
+                },
+                Param {
+                    id: 7,
+                    name: "sustain",
+                    param_type: ParamType::Decibel,
+                    default_value: 1.0,
+                    min_value: 0.001,
+                    max_value: 1.0,
+                },
+                Param {
+                    id: 8,
+                    name: "release",
+                    param_type: ParamType::Duration,
+                    default_value: 0.1,
+                    min_value: 0.001,
+                    max_value: 2.0,
                 },
             ],
         }
@@ -152,20 +184,24 @@ impl BatsInstrument for Toof {
         match id {
             1 => {
                 if self.bypass_filter {
-                    0.6
+                    0.51
                 } else {
-                    0.4
+                    0.49
                 }
             }
             2 => self.filter_cutoff,
             3 => self.filter_resonance,
             4 => {
                 if self.is_polyphonic {
-                    0.6
+                    0.51
                 } else {
-                    0.4
+                    0.49
                 }
             }
+            5 => self.envelope.attack(self.sample_rate),
+            6 => self.envelope.decay(self.sample_rate),
+            7 => self.envelope.sustain(),
+            8 => self.envelope.release(self.sample_rate),
             _ => 0.0,
         }
     }
@@ -189,6 +225,10 @@ impl BatsInstrument for Toof {
             4 => {
                 self.is_polyphonic = value >= 0.5;
             }
+            5 => self.envelope.set_attack(self.sample_rate, value),
+            6 => self.envelope.set_decay(self.sample_rate, value),
+            7 => self.envelope.set_sustain(self.sample_rate, value),
+            8 => self.envelope.set_release(self.sample_rate, value),
             _ => (),
         }
     }

@@ -121,7 +121,7 @@ fn process_metronome(
 ) {
     left.fill(0.0);
     right.fill(0.0);
-    let mut previous = match transport.pop() {
+    let previous = match transport.pop() {
         Some(p) => p,
         None => {
             left[0] = metronome_volume;
@@ -131,15 +131,20 @@ fn process_metronome(
     };
     transport.clear();
     transport.push(previous);
-    for i in 0..sample_count {
+    let mut previous_beat = previous.beat();
+    transport.extend((0..sample_count).map(|i| {
         let next = metronome.next_position();
-        if previous.beat() != next.beat() {
-            left[i] = metronome_volume;
-            right[i] = metronome_volume;
-        }
-        transport.push(next);
-        previous = next;
-    }
+        let next_beat = next.beat();
+        let v = if previous_beat != next_beat {
+            metronome_volume
+        } else {
+            0.0
+        };
+        left[i] += v;
+        right[i] += v;
+        previous_beat = next_beat;
+        next
+    }));
 }
 
 /// Mix `src` onto `dst` weighted by `volume`.
@@ -154,6 +159,12 @@ mod tests {
     use wmidi::{Channel, Note, U7};
 
     use super::*;
+
+    #[test]
+    fn bats_implements_debug() {
+        let b = Bats::new(SampleRate::new(44100.0), 1024);
+        let _: &dyn std::fmt::Debug = &b;
+    }
 
     #[test]
     fn no_input_produces_silence() {

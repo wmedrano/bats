@@ -65,6 +65,7 @@ pub struct SelectorMenu<'a, T, F, A: AsRef<[T]>> {
     selection: Selector<T, A>,
     formatter: F,
     extra_event_handler: Box<SelectorEventHandler<'a, T>>,
+    color: Color,
 }
 
 impl<'a, T, F, A: AsRef<[T]>> SelectorMenu<'a, T, F, A> {
@@ -76,6 +77,7 @@ impl<'a, T, F, A: AsRef<[T]>> SelectorMenu<'a, T, F, A> {
             selection: Selector::new(items),
             formatter,
             extra_event_handler: Box::new(|_, _| MenuAction::None),
+            color: Color::White,
         }
     }
 
@@ -86,11 +88,14 @@ impl<'a, T, F, A: AsRef<[T]>> SelectorMenu<'a, T, F, A> {
         handler: impl 'b + FnMut(Event, &T) -> MenuAction<T>,
     ) -> SelectorMenu<'b, T, F, A> {
         SelectorMenu {
-            title: self.title,
-            selection: self.selection,
-            formatter: self.formatter,
             extra_event_handler: Box::new(handler),
+            ..self
         }
+    }
+
+    /// Set the color of the menu.
+    pub fn with_color(self, color: Color) -> Self {
+        SelectorMenu { color, ..self }
     }
 
     /// Set the title.
@@ -139,7 +144,7 @@ impl<'a, T: Clone, F: Fn(&T) -> String, A: AsRef<[T]>> Menu for SelectorMenu<'a,
                         .borders(widgets::Borders::ALL)
                         .border_type(widgets::BorderType::Rounded),
                 )
-                .style(Style::default().fg(Color::White).bg(Color::Black)),
+                .style(Style::default().fg(self.color).bg(Color::Black)),
             frame.size(),
         )
     }

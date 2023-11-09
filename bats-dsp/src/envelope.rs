@@ -11,6 +11,9 @@ pub struct EnvelopeParams {
     release_delta: f32,
     /// The amp level of the sustain phase.
     sustain_amp: f32,
+    /// The decay in seconds. Required in cases where recomputation is needed and decay is not
+    /// computable.
+    decay_seconds: f32,
 }
 
 impl Default for EnvelopeParams {
@@ -22,6 +25,7 @@ impl Default for EnvelopeParams {
             decay_delta: -1.0,
             release_delta: -1.0,
             sustain_amp: 1.0,
+            decay_seconds: 0.0,
         }
     }
 }
@@ -35,18 +39,75 @@ impl EnvelopeParams {
         sustain_amp: f32,
         release_seconds: f32,
     ) -> EnvelopeParams {
-        let attack_frames = sample_rate.sample_rate() * attack_seconds;
-        let attack_delta = 1.0 / attack_frames;
-        let decay_frames = sample_rate.sample_rate() * decay_seconds;
-        let decay_delta = -(1.0 - sustain_amp) / decay_frames;
-        let release_frames = sample_rate.sample_rate() * release_seconds;
-        let release_delta = -sustain_amp / release_frames;
-        EnvelopeParams {
-            attack_delta,
-            decay_delta,
-            release_delta,
-            sustain_amp,
+        let mut p = EnvelopeParams::default();
+        p.set_attack(sample_rate, attack_seconds);
+        p.set_decay(sample_rate, decay_seconds);
+        p.set_sustain(sample_rate, sustain_amp);
+        p.set_release(sample_rate, release_seconds);
+        p
+    }
+
+    /// Get the attack value in seconds.
+    pub fn attack(&self, sample_rate: SampleRate) -> f32 {
+        let attack_samples = 1.0 / self.attack_delta;
+        attack_samples * sample_rate.seconds_per_sample()
+    }
+
+    /// Set the attack value.
+    pub fn set_attack(&mut self, sample_rate: SampleRate, attack_seconds: f32) {
+        debug_assert!(attack_seconds >= 0.0);
+        if attack_seconds == 0.0 {
+            self.attack_delta = 1.0;
+        } else {
+            let attack_frames = sample_rate.sample_rate() * attack_seconds;
+            self.attack_delta = 1.0 / attack_frames;
         }
+    }
+
+    /// Get the decay value.
+    pub fn decay(&self, _sample_rate: SampleRate) -> f32 {
+        self.decay_seconds
+    }
+
+    /// Set the decay.
+    pub fn set_decay(&mut self, sample_rate: SampleRate, decay_seconds: f32) {
+        debug_assert!(decay_seconds >= 0.0);
+        self.decay_seconds = decay_seconds;
+        if decay_seconds == 0.0 || self.sustain_amp == 1.0 {
+            self.decay_delta = -1.0;
+        } else {
+            let decay_frames = sample_rate.sample_rate() * decay_seconds;
+            self.decay_delta = (self.sustain_amp - 1.0) / decay_frames;
+        }
+        debug_assert!(self.decay_delta < 0.0);
+    }
+
+    /// Returns the sustain of this [`EnvelopeParams`].
+    pub fn sustain(&self) -> f32 {
+        self.sustain_amp
+    }
+
+    /// Sets the sustain of this [`EnvelopeParams`].
+    pub fn set_sustain(&mut self, sample_rate: SampleRate, sustain_amp: f32) {
+        debug_assert!(
+            (0.0..=1.0).contains(&sustain_amp),
+            "0.0 <= {sustain_amp} <= 1.0"
+        );
+        self.sustain_amp = sustain_amp;
+        self.set_decay(sample_rate, self.decay_seconds);
+    }
+
+    /// Get the release value in seconds.
+    pub fn release(&self, sample_rate: SampleRate) -> f32 {
+        let release_frames = -self.sustain_amp / self.release_delta;
+        release_frames * sample_rate.seconds_per_sample()
+    }
+
+    /// Sets the release of this [`EnvelopeParams`].
+    pub fn set_release(&mut self, sample_rate: SampleRate, release_seconds: f32) {
+        debug_assert!(release_seconds >= 0.0);
+        let release_frames = sample_rate.sample_rate() * release_seconds;
+        self.release_delta = -self.sustain_amp / release_frames;
     }
 }
 
@@ -155,5 +216,79 @@ mod tests {
             for _ in released.iter_samples(&params, 1000) {}
             assert!(!released.is_active(), "{:?}", released);
         }
+    }
+
+    #[test]
+    fn default_envelope() {
+        let params = EnvelopeParams::default();
+        let sample_rate = SampleRate::new(64.0);
+        // The minimum attack is at least 1 frame.
+        assert_eq!(params.attack(sample_rate), 1.0 / 64.0);
+        assert_eq!(params.decay(sample_rate), 0.0);
+        assert_eq!(params.sustain(), 1.0);
+        // The minimum release is at least 1 frame.
+        assert_eq!(params.release(sample_rate), 1.0 / 64.0);
+    }
+
+    #[test]
+    fn large_attack_takes_long_time_to_reach_1() {
+        let sample_rate = SampleRate::new(4.0);
+        let params = EnvelopeParams::new(sample_rate, 2.0, 0.0, 1.0, 0.0);
+        let mut env = Envelope::new();
+        let output: Vec<_> = env.iter_samples(&params, 10).collect();
+        assert_eq!(
+            output,
+            vec![
+                1.0 / 8.0,
+                2.0 / 8.0,
+                3.0 / 8.0,
+                4.0 / 8.0,
+                5.0 / 8.0,
+                6.0 / 8.0,
+                7.0 / 8.0,
+                1.0,
+                1.0,
+                1.0
+            ],
+            "params={params:?}"
+        );
+    }
+
+    #[test]
+    fn get_and_set_params() {
+        let mut params = EnvelopeParams::default();
+        let sample_rate = SampleRate::new(64.0);
+        params.set_attack(sample_rate, 5.0);
+        params.set_decay(sample_rate, 6.0);
+        params.set_sustain(sample_rate, 0.7);
+        params.set_release(sample_rate, 0.8);
+        assert_eq!(params.attack(sample_rate), 5.0);
+        assert_eq!(params.decay(sample_rate), 6.0);
+        assert_eq!(params.sustain(), 0.7);
+        assert_eq!(params.release(sample_rate), 0.8);
+    }
+
+    #[test]
+    #[should_panic]
+    fn bad_attack_panics() {
+        EnvelopeParams::default().set_attack(SampleRate::new(44100.0), -1.0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn bad_decay_panics() {
+        EnvelopeParams::default().set_decay(SampleRate::new(44100.0), -1.0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn bad_sustain_panics() {
+        EnvelopeParams::default().set_sustain(SampleRate::new(44100.0), -1.0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn bad_release_panics() {
+        EnvelopeParams::default().set_release(SampleRate::new(44100.0), -1.0);
     }
 }

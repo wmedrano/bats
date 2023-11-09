@@ -19,7 +19,7 @@ impl<T, A: AsRef<[T]>> Selector<T, A> {
     }
 
     /// Iterate over all items. The iterator contains `(true_if_selected, &item)`.
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item = (bool, &'a T)> {
+    pub fn iter(&self) -> impl Iterator<Item = (bool, &T)> {
         self.items
             .as_ref()
             .iter()

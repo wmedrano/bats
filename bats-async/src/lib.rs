@@ -6,13 +6,12 @@ use log::info;
 pub mod command;
 
 /// Send commands to a bats instance.
-#[derive(Clone, Debug)]
 pub struct CommandSender {
     sender: Sender<Command>,
 }
 
 /// Receive commands for a bats instance.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct CommandReceiver {
     /// The channel to receive commands from.
     receiver: Receiver<Command>,
