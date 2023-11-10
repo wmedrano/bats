@@ -225,7 +225,11 @@ impl Ui {
                 .get(&p.id)
                 .copied()
                 .unwrap_or(0.0);
-            format!("{name}: {value}", name = p.name, value = p.formatted(value),)
+            format!(
+                "{name}: {value}",
+                name = p.name,
+                value = p.param_type.formatted(value),
+            )
         })
         .with_extra_event_handler(|event, param| match event {
             events::Event::Left => {

@@ -129,7 +129,7 @@ impl BatsInstrument for Toof {
                     name: "release",
                     param_type: ParamType::Duration,
                     default_value: 0.1,
-                    min_value: 0.001,
+                    min_value: 0.003,
                     max_value: 2.0,
                 },
             ],
@@ -328,5 +328,58 @@ mod tests {
         let toof = Toof::new(SampleRate::new(44100.0));
         assert_eq!(toof.voices.capacity(), 16);
         assert_eq!(toof.clone().voices.capacity(), 16);
+    }
+
+    #[test]
+    fn set_params_matches_get_params_values() {
+        let params = Toof::new(SampleRate::new(44100.0)).metadata().params;
+        for param in params {
+            let mut toof = Toof::new(SampleRate::new(44100.0));
+            let initial_value = toof.param(param.id);
+            toof.set_param(param.id, initial_value);
+            assert_eq!(toof.param(param.id), initial_value);
+        }
+    }
+
+    #[test]
+    fn set_params_can_set_to_min_and_max() {
+        let params = Toof::new(SampleRate::new(44100.0)).metadata().params;
+        for param in params {
+            let mut toof = Toof::new(SampleRate::new(44100.0));
+            toof.set_param(param.id, param.min_value);
+            assert_eq!(toof.param(param.id), param.min_value, "{param:?}");
+            toof.set_param(param.id, param.max_value);
+            assert_eq!(toof.param(param.id), param.max_value, "{param:?}");
+        }
+    }
+
+    #[test]
+    fn can_set_param_for_unknown_id() {
+        let final_param_id = Toof::new(SampleRate::new(44100.0))
+            .metadata()
+            .params
+            .iter()
+            .map(|p| p.id)
+            .max()
+            .unwrap_or(u32::MAX);
+        let mut toof = Toof::new(SampleRate::new(44100.0));
+        toof.set_param(final_param_id, 0.0);
+    }
+
+    #[test]
+    fn play_and_release_notes() {
+        let mut toof = Toof::new(SampleRate::new(44100.0));
+        let midi_messages = [
+            (1, MidiMessage::NoteOn(Channel::Ch1, Note::C3, U7::MAX)),
+            (2, MidiMessage::NoteOff(Channel::Ch1, Note::C3, U7::MIN)),
+            (10, MidiMessage::NoteOn(Channel::Ch1, Note::D3, U7::MAX)),
+            (10, MidiMessage::NoteOn(Channel::Ch1, Note::D3, U7::MIN)),
+            (20, MidiMessage::NoteOn(Channel::Ch1, Note::E3, U7::MAX)),
+            (25, MidiMessage::NoteOn(Channel::Ch1, Note::E4, U7::MAX)),
+            (44000, MidiMessage::Reset),
+        ];
+        let buffers = toof.process_to_buffers(44100, &midi_messages);
+        assert_eq!(buffers.len(), 44100);
+        assert_eq!(buffers.left, buffers.right);
     }
 }

@@ -106,8 +106,12 @@ impl EnvelopeParams {
     /// Sets the release of this [`EnvelopeParams`].
     pub fn set_release(&mut self, sample_rate: SampleRate, release_seconds: f32) {
         debug_assert!(release_seconds >= 0.0);
-        let release_frames = sample_rate.sample_rate() * release_seconds;
-        self.release_delta = -self.sustain_amp / release_frames;
+        if release_seconds == 0.0 {
+            self.release_delta = -1.0;
+        } else {
+            let release_frames = sample_rate.sample_rate() * release_seconds;
+            self.release_delta = -self.sustain_amp / release_frames;
+        }
     }
 }
 
@@ -255,7 +259,7 @@ mod tests {
     }
 
     #[test]
-    fn get_and_set_params() {
+    fn get_and_set_params_produces_consistent_values() {
         let mut params = EnvelopeParams::default();
         let sample_rate = SampleRate::new(64.0);
         params.set_attack(sample_rate, 5.0);
@@ -266,6 +270,21 @@ mod tests {
         assert_eq!(params.decay(sample_rate), 6.0);
         assert_eq!(params.sustain(), 0.7);
         assert_eq!(params.release(sample_rate), 0.8);
+    }
+
+    #[test]
+    fn zero_second_durations_are_ok() {
+        let mut params = EnvelopeParams::default();
+        let sample_rate = SampleRate::new(64.0);
+        params.set_attack(sample_rate, 0.0);
+        params.set_decay(sample_rate, 0.0);
+        params.set_sustain(sample_rate, 0.0);
+        params.set_release(sample_rate, 0.0);
+        // At least 1 frame is required.
+        assert_eq!(params.attack(sample_rate), 1.0 / 64.0);
+        assert_eq!(params.decay(sample_rate), 0.0);
+        assert_eq!(params.sustain(), 0.0);
+        assert_eq!(params.release(sample_rate), 0.0);
     }
 
     #[test]

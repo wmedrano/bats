@@ -24,7 +24,7 @@ pub trait BatsInstrument {
     fn set_param(&mut self, id: u32, value: f32);
 
     /// Run any batch cleanup operations.
-    fn batch_cleanup(&mut self) {}
+    fn batch_cleanup(&mut self);
 
     /// Handle processing of `midi_in` and output to `left_out` and
     /// `right_out`.

@@ -1,13 +1,8 @@
-use std::{fmt, path::Path, sync::Arc};
+use std::{fmt, path::Path};
 
 use anyhow::{anyhow, Result};
 
 use crate::sample_rate::SampleRate;
-
-/// `ImmutableBuffers` allow sharing of buffers easily, as long as they are immutable.
-pub struct ImmutableBuffers {
-    pub inner: Arc<Buffers>,
-}
 
 /// Buffers contains a left and right audio channel.
 #[derive(Clone, PartialEq)]
@@ -25,6 +20,17 @@ impl Buffers {
             left: vec![0.0; len],
             right: vec![0.0; len],
         }
+    }
+
+    /// Create a new buffer from an iterator.
+    pub fn with_iter(iter: impl Iterator<Item = (f32, f32)>) -> Buffers {
+        let mut left = Vec::with_capacity(iter.size_hint().1.unwrap_or(0));
+        let mut right = Vec::with_capacity(iter.size_hint().1.unwrap_or(0));
+        for (l, r) in iter {
+            left.push(l);
+            right.push(r);
+        }
+        Buffers { left, right }
     }
 
     /// Create new buffers from a wav file. `sample_rate` should be the sample rate of the returned `Buffers`.
@@ -99,20 +105,6 @@ impl fmt::Debug for Buffers {
     }
 }
 
-impl From<Buffers> for ImmutableBuffers {
-    fn from(v: Buffers) -> ImmutableBuffers {
-        ImmutableBuffers { inner: Arc::new(v) }
-    }
-}
-
-impl ImmutableBuffers {
-    /// Clone an immutable buffers into a possibly mutable `Buffers`.
-    pub fn clone_to_buffers(&self) -> Buffers {
-        let b: &Buffers = &self.inner;
-        b.clone()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -122,6 +114,7 @@ mod tests {
     #[test]
     fn new_buffers_is_zerod() {
         let b = Buffers::new(1024);
+        assert!(!b.is_empty());
         assert_eq!(b.len(), 1024);
         assert_eq!(b.left, vec![0.0; 1024]);
         assert_eq!(b.right, vec![0.0; 1024]);
@@ -138,6 +131,13 @@ mod tests {
     }
 
     #[test]
+    fn read_mono_wav_file_returns_error() {
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.push("../assets/test/mono_44100_32bit_signed.wav");
+        assert!(Buffers::from_wav(path, SampleRate::new(44100.0)).is_err());
+    }
+
+    #[test]
     fn read_wav_file_on_unsupported_sample_rate_produces_error() {
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.push("../assets/test/stereo_44100_32bit_signed.wav");
@@ -147,6 +147,22 @@ mod tests {
     #[test]
     fn read_wav_from_file_that_does_not_exist_produces_error() {
         assert!(Buffers::from_wav("/does/not/exist", SampleRate::new(44100.0)).is_err());
+    }
+
+    #[test]
+    fn get_out_of_range_returns_zeros() {
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.push("../assets/test/stereo_44100_32bit_signed.wav");
+        let data = Buffers::from_wav(path, SampleRate::new(44100.0)).unwrap();
+        assert_eq!(data.get(usize::MAX), (0.0, 0.0));
+    }
+
+    #[test]
+    fn set_sample_sets_the_sample() {
+        let mut buffers = Buffers::with_iter(std::iter::repeat((1.0, 1.0)).take(100));
+        assert_eq!(buffers.get(10), (1.0, 1.0));
+        buffers.set(10, (-1.0, -1.0));
+        assert_eq!(buffers.get(10), (-1.0, -1.0));
     }
 
     #[test]

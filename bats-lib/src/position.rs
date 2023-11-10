@@ -47,6 +47,8 @@ mod tests {
     #[test]
     fn default_value_is_zero() {
         assert_eq!(Position::default(), Position::new(0.0));
+        assert_eq!(Position::default().beat(), 0);
+        assert_eq!(Position::default().sub_beat(), 0.0);
     }
 
     #[test]

@@ -156,6 +156,7 @@ fn mix(dst: &mut [f32], src: &[f32], volume: f32) {
 
 #[cfg(test)]
 mod tests {
+
     use wmidi::{Channel, Note, U7};
 
     use super::*;
@@ -164,6 +165,12 @@ mod tests {
     fn bats_implements_debug() {
         let b = Bats::new(SampleRate::new(44100.0), 1024);
         let _: &dyn std::fmt::Debug = &b;
+    }
+
+    #[test]
+    fn bats_has_right_number_of_tracks() {
+        let b = Bats::new(SampleRate::new(44100.0), 1024);
+        assert_eq!(b.tracks.len(), Bats::SUPPORTED_TRACKS);
     }
 
     #[test]
