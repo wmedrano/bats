@@ -68,9 +68,9 @@ pub trait BatsInstrumentExt: BatsInstrument {
         let param = match metadata.param_by_name(name) {
             None => {
                 return Err(anyhow!(
-                    "Plugin {} not found. Valid values are: {:?}",
+                    "Param \"{}\" not found. Valid params are: {:?}",
                     name,
-                    metadata.params.iter().map(|p| p.name)
+                    metadata.params
                 ))
             }
             Some(p) => p,

@@ -12,8 +12,6 @@ pub mod position;
 pub struct Bats {
     /// The metronome.
     pub metronome: Metronome,
-    /// The volume for the metronome.
-    pub metronome_volume: f32,
     /// The positions for each sample.
     ///
     /// Note: The first entry in the slice represents the previous
@@ -59,7 +57,6 @@ impl Bats {
     pub fn new(sample_rate: SampleRate, buffer_size: usize) -> Bats {
         Bats {
             metronome: Metronome::new(sample_rate, 120.0),
-            metronome_volume: 0.0,
             transport: Vec::with_capacity(buffer_size + 1),
             armed_track: 0,
             sample_rate,
@@ -75,15 +72,7 @@ impl Bats {
         left: &mut [f32],
         right: &mut [f32],
     ) {
-        let sample_count = left.len().min(right.len());
-        process_metronome(
-            sample_count,
-            &mut self.metronome,
-            self.metronome_volume,
-            left,
-            right,
-            &mut self.transport,
-        );
+        self.metronome.process(left, right, &mut self.transport);
         for (id, track) in self.tracks.iter_mut().enumerate() {
             let midi = if id == self.armed_track { midi } else { &[] };
             if let Some(p) = track.plugin.as_mut() {
@@ -109,31 +98,6 @@ impl Bats {
     }
 }
 
-/// Process the metronome data. This produces the metronome sound and
-/// updates the `transport` variable.
-fn process_metronome(
-    sample_count: usize,
-    metronome: &mut Metronome,
-    metronome_volume: f32,
-    left: &mut [f32],
-    right: &mut [f32],
-    transport: &mut Vec<Position>,
-) {
-    let previous = transport.pop().unwrap_or(Position::MAX);
-    transport.clear();
-    transport.push(previous);
-    let mut previous_beat = previous.beat();
-    transport.extend((0..sample_count).map(|i| {
-        let next = metronome.next_position();
-        let has_tick = previous_beat != next.beat();
-        previous_beat = next.beat();
-        let v = if has_tick { metronome_volume } else { 0.0 };
-        left[i] = v;
-        right[i] = v;
-        next
-    }));
-}
-
 /// Mix `src` onto `dst` weighted by `volume`.
 fn mix(dst: &mut [f32], src: &[f32], volume: f32) {
     for (d, s) in dst.iter_mut().zip(src.iter()) {
@@ -147,6 +111,10 @@ mod tests {
     use wmidi::{Channel, Note, U7};
 
     use super::*;
+
+    fn to_has_signal_vec(s: &[f32]) -> Vec<bool> {
+        s.iter().map(|v| v.abs() > f32::EPSILON).collect()
+    }
 
     #[test]
     fn bats_implements_debug() {
@@ -174,18 +142,30 @@ mod tests {
     fn no_input_with_metronome_produces_metronome() {
         let mut left = [1.0, 2.0, 3.0];
         let mut right = [4.0, 5.0, 6.0];
-        let mut b = Bats::new(SampleRate::new(44100.0), left.len());
-        b.metronome_volume = 0.8;
+        let sample_rate = SampleRate::new(16.0);
+        let mut b = Bats::new(sample_rate, left.len());
+        b.metronome.set_synth_decay(sample_rate, 0.0);
+        b.metronome.volume = 1.0;
         b.process(&[], &mut left, &mut right);
-        assert_eq!(left, [0.8, 0.0, 0.0]);
-        assert_eq!(right, [0.8, 0.0, 0.0]);
+        assert_eq!(
+            to_has_signal_vec(&left),
+            vec![true, false, false],
+            "{left:?}"
+        );
+        assert_eq!(
+            to_has_signal_vec(&right),
+            vec![true, false, false],
+            "{right:?}"
+        );
     }
 
     #[test]
     fn metronome_ticks_regularly() {
         let mut buffers = Buffers::new(44100);
         let mut bats = Bats::new(SampleRate::new(44100.0), 44100);
-        bats.metronome_volume = 0.8;
+        bats.metronome.volume = 1.0;
+        bats.metronome
+            .set_synth_decay(SampleRate::new(44100.0), 0.0);
         bats.metronome.set_bpm(SampleRate::new(44100.0), 120.0);
         bats.process(&[], &mut buffers.left, &mut buffers.right);
         // At 120 BPM, it should tick twice in a second.

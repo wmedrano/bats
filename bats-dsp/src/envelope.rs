@@ -141,6 +141,12 @@ enum Stage {
 }
 
 impl Envelope {
+    /// An envelope that has been completely released and is no longer active.
+    pub const INACTIVE: Envelope = Envelope {
+        stage: Stage::Done,
+        amp: 0.0,
+    };
+
     /// Create a new envelope.
     pub fn new() -> Envelope {
         Envelope {
@@ -232,6 +238,14 @@ mod tests {
         assert_eq!(params.sustain(), 1.0);
         // The minimum release is at least 1 frame.
         assert_eq!(params.release(sample_rate), 1.0 / 64.0);
+    }
+
+    #[test]
+    fn inactive_envelope_produces_no_signal() {
+        let params = EnvelopeParams::default();
+        let mut env = Envelope::INACTIVE;
+        let output: Vec<_> = env.iter_samples(&params, 10000).collect();
+        assert_eq!(output, vec![0.0; 10000]);
     }
 
     #[test]

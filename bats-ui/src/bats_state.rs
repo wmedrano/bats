@@ -83,7 +83,7 @@ impl BatsState {
             commands,
             armed_track,
             bpm,
-            metronome_volume: bats.metronome_volume,
+            metronome_volume: bats.metronome.volume,
             tracks,
             sample_rate: bats.sample_rate,
             buffer_size: bats.buffer_size,

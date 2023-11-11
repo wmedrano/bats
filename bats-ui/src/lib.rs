@@ -108,6 +108,7 @@ impl Ui {
 
     /// Run the metronome page.
     fn run_metronome(&mut self) -> Result<()> {
+        let min_metronome_volume = 2f32.powi(-10);
         #[derive(Copy, Clone)]
         enum Item {
             Bpm,
@@ -132,20 +133,20 @@ impl Ui {
         .with_extra_event_handler(|event, selected| match (event, selected) {
             (events::Event::Left, Item::Volume) => {
                 self.bats_state.borrow_mut().modify_metronome(|v| {
-                    if v < 0.01 {
+                    if v <= min_metronome_volume {
                         0.0
                     } else {
-                        v / 1.15
+                        v / 2f32.sqrt()
                     }
                 });
                 MenuAction::Redraw
             }
             (events::Event::Right, Item::Volume) => {
                 self.bats_state.borrow_mut().modify_metronome(|v| {
-                    if v < 0.01 {
-                        0.01
+                    if v < min_metronome_volume {
+                        min_metronome_volume
                     } else {
-                        v * 1.15
+                        v * 2f32.sqrt()
                     }
                 });
                 MenuAction::Redraw

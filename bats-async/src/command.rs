@@ -33,8 +33,8 @@ impl Command {
         match self {
             Command::None => Command::None,
             Command::SetMetronomeVolume(v) => {
-                let old = b.metronome_volume;
-                b.metronome_volume = v;
+                let old = b.metronome.volume;
+                b.metronome.volume = v;
                 Command::SetMetronomeVolume(old)
             }
             Command::SetMetronomeBpm(bpm) => {
@@ -126,10 +126,10 @@ mod tests {
     #[test]
     fn set_metronome_volume_sets_new_volume_and_returns_old_as_undo() {
         let mut b = Bats::new(SampleRate::new(44100.0), 64);
-        b.metronome_volume = 1.0;
+        b.metronome.volume = 1.0;
 
         let undo = Command::SetMetronomeVolume(0.5).execute(&mut b);
-        assert_eq!(b.metronome_volume, 0.5);
+        assert_eq!(b.metronome.volume, 0.5);
         assert_eq!(undo, Command::SetMetronomeVolume(1.0));
     }
 
