@@ -39,3 +39,12 @@ grcov . --binary-path ./target/debug/deps/ -s . -t html --branch --ignore-not-ex
 find . -name "*.profraw" -delete
 xdg-open target/coverage/html/html/index.html
 ```
+
+### Benchmarking
+
+Microbenchmarks are built using criterion and can be run with `cargo bench`. Additionally, flamegraphs can be made with `cargo flamegraph`.
+
+```
+# Creates flamegraph.svg after program exits.
+cargo flamegraph
+```
