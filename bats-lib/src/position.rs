@@ -8,14 +8,25 @@ pub struct Position {
 }
 
 impl Position {
+    /// The maximum represntable position.
+    pub const MAX: Position = Position { beat: u64::MAX };
+
+    /// The minimum (non-zero) represntable position.
+    pub const DELTA: Position = Position { beat: 1 };
+
     /// Create a new `Position` with the given beat and sub_beat. If
     /// `sub_beat` is greater than 0, than it is converted into the
     /// appropriate amount of beats.
     pub fn new(beat: f64) -> Position {
-        let higher = (beat.trunc() as u64) << 32;
-        let lower = (beat.fract() * (1u64 << 32) as f64) as u32;
+        let sub_beat_scalar = (1u64 << 32) as f64;
+        Position::with_components(beat.trunc() as u32, (beat.fract() * sub_beat_scalar) as u32)
+    }
+
+    pub fn with_components(beat: u32, sub_beat: u32) -> Position {
+        let higher = (beat as u64) << 32;
+        let lower = sub_beat as u64;
         Position {
-            beat: higher + lower as u64,
+            beat: higher + lower,
         }
     }
 
@@ -35,7 +46,7 @@ impl std::ops::Add for Position {
 
     fn add(self, rhs: Position) -> Position {
         Position {
-            beat: self.beat + rhs.beat,
+            beat: self.beat.wrapping_add(rhs.beat),
         }
     }
 }
@@ -80,6 +91,15 @@ mod tests {
         assert_eq!(
             Position::new(1.625) + Position::new(3.75),
             Position::new(5.375)
+        );
+    }
+
+    #[test]
+    fn position_wraps_around_on_add() {
+        assert_eq!(Position::MAX + Position::DELTA, Position::new(0.0));
+        assert_eq!(
+            Position::MAX + (Position::DELTA + Position::new(1.0)),
+            Position::new(1.0)
         );
     }
 }

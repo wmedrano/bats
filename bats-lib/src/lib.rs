@@ -119,30 +119,17 @@ fn process_metronome(
     right: &mut [f32],
     transport: &mut Vec<Position>,
 ) {
-    left.fill(0.0);
-    right.fill(0.0);
-    let previous = match transport.pop() {
-        Some(p) => p,
-        None => {
-            left[0] = metronome_volume;
-            right[0] = metronome_volume;
-            Position::default()
-        }
-    };
+    let previous = transport.pop().unwrap_or(Position::MAX);
     transport.clear();
     transport.push(previous);
     let mut previous_beat = previous.beat();
     transport.extend((0..sample_count).map(|i| {
         let next = metronome.next_position();
-        let next_beat = next.beat();
-        let v = if previous_beat != next_beat {
-            metronome_volume
-        } else {
-            0.0
-        };
-        left[i] += v;
-        right[i] += v;
-        previous_beat = next_beat;
+        let has_tick = previous_beat != next.beat();
+        previous_beat = next.beat();
+        let v = if has_tick { metronome_volume } else { 0.0 };
+        left[i] = v;
+        right[i] = v;
         next
     }));
 }
