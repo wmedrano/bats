@@ -77,7 +77,7 @@ impl Ui {
         loop {
             match menu.run(&self.event_poll, &mut self.terminal)? {
                 Some(MainMenuItem::Tracks) => self.run_tracks()?,
-                Some(MainMenuItem::Metronome) => unimplemented!(),
+                Some(MainMenuItem::Metronome) => self.run_metronome()?,
                 Some(MainMenuItem::Quit) => return Ok(()),
                 None => (),
             }
@@ -103,6 +103,70 @@ impl Ui {
             }
             self.run_single_track(track.id)?;
         };
+        Ok(())
+    }
+
+    /// Run the metronome page.
+    fn run_metronome(&mut self) -> Result<()> {
+        #[derive(Copy, Clone)]
+        enum Item {
+            Bpm,
+            Volume,
+            Back,
+        }
+        let mut menu = SelectorMenu::new(
+            "Metronome".to_string(),
+            [Item::Bpm, Item::Volume, Item::Back],
+            |i: &Item| match i {
+                Item::Bpm => format!("BPM: {bpm}", bpm = self.bats_state.borrow().bpm()),
+                Item::Volume => {
+                    format!(
+                        "Volume: {volume}",
+                        volume = ParamType::Decibel
+                            .formatted(self.bats_state.borrow().metronome_volume())
+                    )
+                }
+                Item::Back => format!("Back"),
+            },
+        )
+        .with_extra_event_handler(|event, selected| match (event, selected) {
+            (events::Event::Left, Item::Volume) => {
+                self.bats_state.borrow_mut().modify_metronome(|v| {
+                    if v < 0.01 {
+                        0.0
+                    } else {
+                        v / 1.15
+                    }
+                });
+                MenuAction::Redraw
+            }
+            (events::Event::Right, Item::Volume) => {
+                self.bats_state.borrow_mut().modify_metronome(|v| {
+                    if v < 0.01 {
+                        0.01
+                    } else {
+                        v * 1.15
+                    }
+                });
+                MenuAction::Redraw
+            }
+            (events::Event::Left, Item::Bpm) => {
+                self.bats_state.borrow_mut().modify_bpm(|v| v - 1.0);
+                MenuAction::Redraw
+            }
+            (events::Event::Right, Item::Bpm) => {
+                self.bats_state.borrow_mut().modify_bpm(|v| v + 1.0);
+                MenuAction::Redraw
+            }
+            _ => MenuAction::None,
+        });
+        while let Some(item) = menu.run(&self.event_poll, &mut self.terminal)? {
+            match item {
+                Item::Bpm => (),
+                Item::Volume => (),
+                Item::Back => return Ok(()),
+            }
+        }
         Ok(())
     }
 

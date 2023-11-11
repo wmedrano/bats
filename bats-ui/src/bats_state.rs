@@ -20,6 +20,8 @@ pub struct BatsState {
     armed_track: usize,
     /// The current BPM.
     bpm: f32,
+    /// The volume of the metronome.
+    metronome_volume: f32,
     /// Details for all the tracks.
     tracks: [TrackDetails; Bats::SUPPORTED_TRACKS],
 }
@@ -81,6 +83,7 @@ impl BatsState {
             commands,
             armed_track,
             bpm,
+            metronome_volume: bats.metronome_volume,
             tracks,
             sample_rate: bats.sample_rate,
             buffer_size: bats.buffer_size,
@@ -127,10 +130,10 @@ impl BatsState {
         }
     }
 
-    /// Set the bpm.
-    pub fn set_bpm(&mut self, bpm: f32) {
-        self.bpm = bpm;
-        self.commands.send(Command::SetMetronomeBpm(bpm));
+    /// Modify the bpm.
+    pub fn modify_bpm(&mut self, f: impl Fn(f32) -> f32) {
+        self.bpm = f(self.bpm);
+        self.commands.send(Command::SetMetronomeBpm(self.bpm));
     }
 
     // The current BPM.
@@ -138,9 +141,17 @@ impl BatsState {
         self.bpm
     }
 
-    /// Toggle the metronome.
-    pub fn toggle_metronome(&mut self) {
-        self.commands.send(Command::ToggleMetronome);
+    /// Modify the metronome volume.
+    pub fn modify_metronome(&mut self, f: impl Fn(f32) -> f32) {
+        let v = f(self.metronome_volume).clamp(0.0, 1.0);
+        self.metronome_volume = v;
+        self.commands
+            .send(Command::SetMetronomeVolume(self.metronome_volume));
+    }
+
+    /// Get the metronome volume.
+    pub fn metronome_volume(&self) -> f32 {
+        self.metronome_volume
     }
 
     /// Get all the tracks.

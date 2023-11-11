@@ -1,15 +1,13 @@
 use bats_lib::{plugin::toof::Toof, plugin::BatsInstrument, Bats};
 use log::error;
 
-const DEFAULT_METRONOME_VOLUME: f32 = 0.8;
-
 /// Contains commands for bats.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Command {
     /// No command.
     None,
-    /// Toggle the metrenome.
-    ToggleMetronome,
+    /// Set the metrenome.
+    SetMetronomeVolume(f32),
     /// Set the BPM of the metronome.
     SetMetronomeBpm(f32),
     /// Add a new track.
@@ -34,13 +32,10 @@ impl Command {
     pub fn execute(self, b: &mut Bats) -> Command {
         match self {
             Command::None => Command::None,
-            Command::ToggleMetronome => {
-                if b.metronome_volume > 0.0 {
-                    b.metronome_volume = 0.0;
-                } else {
-                    b.metronome_volume = DEFAULT_METRONOME_VOLUME;
-                }
-                Command::ToggleMetronome
+            Command::SetMetronomeVolume(v) => {
+                let old = b.metronome_volume;
+                b.metronome_volume = v;
+                Command::SetMetronomeVolume(old)
             }
             Command::SetMetronomeBpm(bpm) => {
                 let previous_bpm = b.metronome.bpm();
@@ -129,17 +124,13 @@ mod tests {
     }
 
     #[test]
-    fn toggle_metronome_volume_toggles_volume() {
+    fn set_metronome_volume_sets_new_volume_and_returns_old_as_undo() {
         let mut b = Bats::new(SampleRate::new(44100.0), 64);
-        b.metronome_volume = DEFAULT_METRONOME_VOLUME;
+        b.metronome_volume = 1.0;
 
-        let undo = Command::ToggleMetronome.execute(&mut b);
-        assert_eq!(b.metronome_volume, 0.0);
-        assert_eq!(undo, Command::ToggleMetronome);
-
-        let undo = Command::ToggleMetronome.execute(&mut b);
-        assert_eq!(b.metronome_volume, DEFAULT_METRONOME_VOLUME);
-        assert_eq!(undo, Command::ToggleMetronome);
+        let undo = Command::SetMetronomeVolume(0.5).execute(&mut b);
+        assert_eq!(b.metronome_volume, 0.5);
+        assert_eq!(undo, Command::SetMetronomeVolume(1.0));
     }
 
     #[test]
