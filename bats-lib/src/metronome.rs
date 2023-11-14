@@ -1,7 +1,7 @@
-use bats_dsp::{sample_rate::SampleRate, sawtooth::Sawtooth};
+use bats_dsp::{position::Position, sample_rate::SampleRate, sawtooth::Sawtooth};
 use wmidi::{Channel, Note, U7};
 
-use crate::{plugin::BatsInstrument, position::Position};
+use crate::plugin::BatsInstrument;
 
 /// Tracks position according to the specified BPM.
 #[derive(Clone, Debug)]

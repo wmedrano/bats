@@ -1,11 +1,9 @@
-use bats_dsp::{buffers::Buffers, sample_rate::SampleRate};
+use bats_dsp::{buffers::Buffers, position::Position, sample_rate::SampleRate};
 use metronome::Metronome;
 use plugin::{toof::Toof, BatsInstrument};
-use position::Position;
 
 pub mod metronome;
 pub mod plugin;
-pub mod position;
 
 /// Handles all processing.
 #[derive(Debug)]
@@ -76,7 +74,7 @@ impl Bats {
         for (id, track) in self.tracks.iter_mut().enumerate() {
             let midi = if id == self.armed_track { midi } else { &[] };
             if let Some(p) = track.plugin.as_mut() {
-                p.process_batch(midi, &mut track.output);
+                p.process_batch(midi.iter().map(|(a, b)| (*a, b)), &mut track.output);
             }
             mix(left, &track.output.left, track.volume);
             mix(right, &track.output.right, track.volume);

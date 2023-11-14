@@ -1,6 +1,6 @@
 /// Position contains the position within the transport. This includes
 /// a beat and sub_beat component.
-#[derive(Copy, Clone, Default, PartialEq)]
+#[derive(Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Position {
     /// The beat where the top 32bits represent the beat and the bottom 32 bits represents the sub
     /// beat.
