@@ -1,14 +1,16 @@
 use bats_dsp::{position::Position, sample_rate::SampleRate, sawtooth::Sawtooth};
-use wmidi::{Channel, Note, U7};
+use wmidi::{Channel, MidiMessage, Note, U7};
 
-use crate::plugin::BatsInstrument;
+use crate::plugin::{BatsInstrument, MidiEvent};
 
 /// Tracks position according to the specified BPM.
 #[derive(Clone, Debug)]
-pub struct Metronome {
+pub struct Transport {
     /// The volume of the metronome.
-    pub volume: f32,
-    /// The beats per minute of the metronome.
+    pub metronome_volume: f32,
+    /// The positions for each frame.
+    transport: Vec<Position>,
+    /// The beats per minute of the transport.
     bpm: f32,
     /// The current position fo the transport.
     position: Position,
@@ -18,11 +20,12 @@ pub struct Metronome {
     sound_gen: MetronomeSynth,
 }
 
-impl Metronome {
-    /// Create a new metronome with the given sample rate and beats per minute.
-    pub fn new(sample_rate: SampleRate, bpm: f32) -> Metronome {
-        let mut m = Metronome {
-            volume: 0.0,
+impl Transport {
+    /// Create a new transport with the given sample rate and beats per minute.
+    pub fn new(sample_rate: SampleRate, buffer_size: usize, bpm: f32) -> Transport {
+        let mut m = Transport {
+            metronome_volume: 0.0,
+            transport: Vec::with_capacity(buffer_size + 1),
             bpm,
             position: Position::default(),
             position_per_sample: Position::default(),
@@ -62,60 +65,116 @@ impl Metronome {
         self.sound_gen.amp_delta = -1.0 / frames;
     }
 
+    /// Push the frame timed items from `midi_iter` to the sequence `dst`.
+    pub fn push_to_sequence<'a>(
+        &self,
+        dst: &mut Vec<MidiEvent>,
+        midi_iter: impl 'a + Iterator<Item = &'a (u32, MidiMessage<'static>)>,
+    ) {
+        for (frame, midi) in midi_iter {
+            let position = self.transport[*frame as usize + 1];
+            dst.push(MidiEvent {
+                position,
+                midi: midi.clone(),
+            });
+        }
+        dst.sort_by_key(|e| e.position);
+    }
+
+    /// Push the events in `sequence` onto `dst`. The events are paired (and sorted) with the frame
+    /// they appear in.
+    pub fn sequence_to_frames(
+        &self,
+        dst: &mut Vec<(u32, MidiMessage<'static>)>,
+        sequence: &[MidiEvent],
+    ) {
+        let midi_events_in_range = |pos: (Position, Position)| {
+            debug_assert!(
+                pos.0 <= pos.1,
+                "{left:?} <= {right:?}",
+                left = pos.0,
+                right = pos.1
+            );
+            sequence
+                .iter()
+                .filter(move |e| (pos.0..pos.1).contains(&e.position))
+                .map(|e| e.midi.clone())
+        };
+        dst.clear();
+        for (frame, pos) in self.iter_transport().enumerate() {
+            let (frame, left, right) = (frame as u32, pos.0, pos.1);
+            if left <= right {
+                dst.extend(midi_events_in_range(pos).map(|m| (frame, m)));
+            } else {
+                dst.extend(midi_events_in_range((pos.0, Position::MAX)).map(|m| (frame, m)));
+                dst.extend(midi_events_in_range((Position::MIN, pos.1)).map(|m| (frame, m)));
+            }
+        }
+    }
+
     /// Populate `transport` with the right position values. `left` and `right` are filled with the
     /// signal for the metronome synth.
-    pub fn process(&mut self, left: &mut [f32], right: &mut [f32], transport: &mut Vec<Position>) {
+    pub fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
         let samples = left.len().min(right.len());
-        self.populate_transport(samples, transport);
-        self.populate_metronome_sound(left, right, transport);
+        self.populate_transport(samples);
+        self.populate_metronome_sound(left, right);
     }
 
     /// Populate the transport with `samples + 1` values. The first element of `transport` will
     /// always be the last element of the previous value. If there is no previous value then
     /// `Position::MAX` will be used.
-    fn populate_transport(&mut self, samples: usize, transport: &mut Vec<Position>) {
-        let previous = transport.pop().unwrap_or(Position::MAX);
-        transport.clear();
-        transport.extend(
-            std::iter::once(previous)
-                .chain(std::iter::repeat_with(|| self.next_position()).take(samples)),
+    fn populate_transport(&mut self, samples: usize) {
+        let previous = self.transport.pop().unwrap_or(Position::MAX);
+        self.transport.clear();
+        self.transport.extend(
+            std::iter::once(previous).chain(
+                std::iter::repeat_with(|| {
+                    let ret = self.position;
+                    self.position += self.position_per_sample;
+                    ret
+                })
+                .take(samples),
+            ),
         );
         debug_assert!(
-            transport.len() == samples + 1,
+            self.transport.len() == samples + 1,
             "{} == {} + 1",
-            transport.len(),
+            self.transport.len(),
             samples
         );
     }
 
+    fn iter_transport<'a>(&'a self) -> impl 'a + Iterator<Item = (Position, Position)> {
+        Self::iter_transport_impl(&self.transport)
+    }
+
+    fn iter_transport_impl<'a>(
+        transport: &'a [Position],
+    ) -> impl 'a + Iterator<Item = (Position, Position)> {
+        transport.windows(2).map(|rng| match rng {
+            [a, b] => (*a, *b),
+            _ => unreachable!(),
+        })
+    }
+
     /// Populate `left` and `right` by playing the metronome synth based on the beats in
     /// `transport`.
-    fn populate_metronome_sound(
-        &mut self,
-        left: &mut [f32],
-        right: &mut [f32],
-        transport: &[Position],
-    ) {
+    fn populate_metronome_sound(&mut self, left: &mut [f32], right: &mut [f32]) {
         let low = wmidi::MidiMessage::NoteOn(Channel::Ch1, Note::C5, U7::MAX);
         let high = wmidi::MidiMessage::NoteOn(Channel::Ch1, Note::C6, U7::MAX);
-        for (idx, pos) in transport.windows(2).enumerate() {
-            match pos {
-                [a, b] => {
-                    if a.beat() != b.beat() {
-                        let note = if b.beat() % 4 == 0 { &high } else { &low };
-                        self.sound_gen.handle_midi(note);
-                    }
-                }
-                _ => unreachable!(),
+        for (idx, pos) in Self::iter_transport_impl(&self.transport).enumerate() {
+            if pos.0.beat() != pos.1.beat() {
+                let note = if pos.1.beat() % 4 == 0 { &high } else { &low };
+                self.sound_gen.handle_midi(note);
             }
             let (v, _) = self.sound_gen.process();
-            left[idx] = v * self.volume;
-            right[idx] = v * self.volume;
+            left[idx] = v * self.metronome_volume;
+            right[idx] = v * self.metronome_volume;
         }
     }
 }
 
-impl Iterator for Metronome {
+impl Iterator for Transport {
     type Item = Position;
 
     fn next(&mut self) -> Option<Position> {
@@ -196,7 +255,7 @@ mod tests {
     #[test]
     fn metronome_produces_beat_at_proper_time() {
         let bpm = 4.0 * 60.0; // 4 beats per second.
-        let m = Metronome::new(SampleRate::new(16.0), bpm);
+        let m = Transport::new(SampleRate::new(16.0), 10, bpm);
         assert_eq!(
             m.take(9).collect::<Vec<Position>>(),
             vec![

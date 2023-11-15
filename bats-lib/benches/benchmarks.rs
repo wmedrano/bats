@@ -44,25 +44,27 @@ fn bats_benchmark(c: &mut Criterion) {
     });
 }
 
-fn metronome_benchmark(c: &mut Criterion) {
-    c.bench_function(&format!("metronome_new"), |b| {
+fn transport_benchmark(c: &mut Criterion) {
+    c.bench_function(&format!("transport_new"), |b| {
         b.iter(move || {
-            let mut metronome = black_box(bats_lib::metronome::Metronome::new(
+            let mut transport = black_box(bats_lib::transport::Transport::new(
                 SampleRate::new(SAMPLE_RATE),
+                BUFFER_SIZE,
                 120.0,
             ));
-            metronome.next_position()
+            transport.next_position()
         })
     });
 
-    c.bench_function(&format!("metronome_tick"), |b| {
-        let mut metronome = black_box(bats_lib::metronome::Metronome::new(
+    c.bench_function(&format!("transport_tick"), |b| {
+        let mut transport = black_box(bats_lib::transport::Transport::new(
             SampleRate::new(SAMPLE_RATE),
+            BUFFER_SIZE,
             120.0,
         ));
         b.iter(move || {
             for _ in 0..BUFFER_SIZE {
-                metronome.next_position();
+                transport.next_position();
             }
         })
     });
@@ -100,5 +102,5 @@ fn toof_benchmark(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, bats_benchmark, metronome_benchmark, toof_benchmark);
+criterion_group!(benches, bats_benchmark, transport_benchmark, toof_benchmark);
 criterion_main!(benches);

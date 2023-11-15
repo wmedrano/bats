@@ -8,6 +8,9 @@ pub struct Position {
 }
 
 impl Position {
+    /// The minimum position.
+    pub const MIN: Position = Position { beat: 0 };
+
     /// The maximum represntable position.
     pub const MAX: Position = Position { beat: u64::MAX };
 

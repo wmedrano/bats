@@ -1,11 +1,17 @@
 use anyhow::anyhow;
-use bats_dsp::buffers::Buffers;
+use bats_dsp::{buffers::Buffers, position::Position};
 use wmidi::MidiMessage;
 
 use self::metadata::Metadata;
 
 pub mod metadata;
 pub mod toof;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MidiEvent {
+    pub position: Position,
+    pub midi: MidiMessage<'static>,
+}
 
 /// Defines a generic instrument plugin.
 pub trait BatsInstrument {
