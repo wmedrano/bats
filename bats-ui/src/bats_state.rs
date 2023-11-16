@@ -4,7 +4,8 @@ use bats_async::{command::Command, CommandSender};
 use bats_dsp::sample_rate::SampleRate;
 use bats_lib::{
     plugin::{metadata::Metadata, toof::Toof, BatsInstrument},
-    Bats, Track,
+    track::Track,
+    Bats,
 };
 use log::{error, info};
 

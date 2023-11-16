@@ -87,17 +87,6 @@ impl std::fmt::Debug for Position {
     }
 }
 
-impl std::fmt::Display for Position {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{beat}:{sub_beat}",
-            beat = self.beat(),
-            sub_beat = self.sub_beat()
-        )
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

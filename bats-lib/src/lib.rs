@@ -1,9 +1,10 @@
 use bats_dsp::{buffers::Buffers, sample_rate::SampleRate};
-use plugin::{toof::Toof, BatsInstrument, MidiEvent};
+use track::{Track, TrackProcessContext};
 use transport::Transport;
 use wmidi::MidiMessage;
 
 pub mod plugin;
+pub mod track;
 pub mod transport;
 
 /// Handles all processing.
@@ -21,32 +22,6 @@ pub struct Bats {
     pub midi_buffer: Vec<(u32, MidiMessage<'static>)>,
     /// The tracks.
     pub tracks: [Track; Bats::SUPPORTED_TRACKS],
-}
-
-/// An plugin with output buffers.
-#[derive(Clone, Debug, PartialEq)]
-pub struct Track {
-    /// The plugin.
-    pub plugin: Option<Box<Toof>>,
-    /// The track volume.
-    pub volume: f32,
-    /// The buffers to output data to.
-    pub output: Buffers,
-    /// The midi sequence to play.
-    pub sequence: Vec<MidiEvent>,
-}
-
-impl Track {
-    /// Create a new track.
-    pub fn new(buffer_size: usize) -> Track {
-        Track {
-            plugin: None,
-            volume: 1.0,
-            output: Buffers::new(buffer_size),
-            // TODO: Determine the right capacity for sequences.
-            sequence: Vec::with_capacity(4096),
-        }
-    }
 }
 
 impl Bats {
@@ -75,26 +50,15 @@ impl Bats {
     ) {
         self.transport.process(left, right);
         for (id, track) in self.tracks.iter_mut().enumerate() {
-            self.midi_buffer.clear();
-            self.transport
-                .sequence_to_frames(&mut self.midi_buffer, &track.sequence);
-            // TODO: Allow tweaking record.
-            let record = true;
-            if self.armed_track == id {
-                let should_sort = !self.midi_buffer.is_empty() && !midi.is_empty();
-                self.midi_buffer.extend_from_slice(midi);
-                if should_sort {
-                    self.midi_buffer.sort_by_key(|(frame, _)| *frame);
-                }
-                if record {
-                    self.transport
-                        .push_to_sequence(&mut track.sequence, midi.iter());
-                }
-            }
-            if let Some(p) = track.plugin.as_mut() {
-                let midi_in = self.midi_buffer.iter().map(|(a, b)| (*a, b));
-                p.process_batch(midi_in, &mut track.output);
-            }
+            let is_armed = id == self.armed_track;
+            let midi_in = if is_armed { midi } else { &[] };
+            track.process(TrackProcessContext {
+                /// TODO: Provide mechanism for enabling/disabling recording.
+                record_to_sequence: true,
+                transport: &self.transport,
+                midi_in,
+                tmp_midi_buffer: &mut self.midi_buffer,
+            });
             mix(left, &track.output.left, track.volume);
             mix(right, &track.output.right, track.volume);
         }
@@ -126,6 +90,8 @@ fn mix(dst: &mut [f32], src: &[f32], volume: f32) {
 mod tests {
 
     use wmidi::{Channel, Note, U7};
+
+    use crate::plugin::toof::Toof;
 
     use super::*;
 
