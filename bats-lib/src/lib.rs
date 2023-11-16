@@ -44,7 +44,7 @@ impl Track {
             volume: 1.0,
             output: Buffers::new(buffer_size),
             // TODO: Determine the right capacity for sequences.
-            sequence: Vec::with_capacity(1024),
+            sequence: Vec::with_capacity(4096),
         }
     }
 }
@@ -75,12 +75,22 @@ impl Bats {
     ) {
         self.transport.process(left, right);
         for (id, track) in self.tracks.iter_mut().enumerate() {
-            if id == self.armed_track {
-                self.transport
-                    .push_to_sequence(&mut track.sequence, midi.iter());
-            }
+            self.midi_buffer.clear();
             self.transport
                 .sequence_to_frames(&mut self.midi_buffer, &track.sequence);
+            // TODO: Allow tweaking record.
+            let record = true;
+            if self.armed_track == id {
+                let should_sort = !self.midi_buffer.is_empty() && !midi.is_empty();
+                self.midi_buffer.extend_from_slice(midi);
+                if should_sort {
+                    self.midi_buffer.sort_by_key(|(frame, _)| *frame);
+                }
+                if record {
+                    self.transport
+                        .push_to_sequence(&mut track.sequence, midi.iter());
+                }
+            }
             if let Some(p) = track.plugin.as_mut() {
                 let midi_in = self.midi_buffer.iter().map(|(a, b)| (*a, b));
                 p.process_batch(midi_in, &mut track.output);
@@ -164,20 +174,6 @@ mod tests {
             vec![true, false, false],
             "{right:?}"
         );
-    }
-
-    #[test]
-    fn metronome_ticks_regularly() {
-        let mut buffers = Buffers::new(44100);
-        let mut bats = Bats::new(SampleRate::new(44100.0), 44100);
-        bats.transport.metronome_volume = 1.0;
-        bats.transport
-            .set_synth_decay(SampleRate::new(44100.0), 0.0);
-        bats.transport.set_bpm(SampleRate::new(44100.0), 120.0);
-        bats.process(&[], &mut buffers.left, &mut buffers.right);
-        // At 120 BPM, it should tick twice in a second.
-        assert_eq!(buffers.left.iter().filter(|v| 0.0 != **v).count(), 2);
-        assert_eq!(buffers.right.iter().filter(|v| 0.0 != **v).count(), 2);
     }
 
     #[test]

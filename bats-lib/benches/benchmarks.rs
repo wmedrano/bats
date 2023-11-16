@@ -47,12 +47,11 @@ fn bats_benchmark(c: &mut Criterion) {
 fn transport_benchmark(c: &mut Criterion) {
     c.bench_function(&format!("transport_new"), |b| {
         b.iter(move || {
-            let mut transport = black_box(bats_lib::transport::Transport::new(
+            black_box(bats_lib::transport::Transport::new(
                 SampleRate::new(SAMPLE_RATE),
                 BUFFER_SIZE,
                 120.0,
-            ));
-            transport.next_position()
+            ))
         })
     });
 
@@ -62,9 +61,10 @@ fn transport_benchmark(c: &mut Criterion) {
             BUFFER_SIZE,
             120.0,
         ));
+        let mut buffers = Buffers::new(BUFFER_SIZE);
         b.iter(move || {
             for _ in 0..BUFFER_SIZE {
-                transport.next_position();
+                transport.process(&mut buffers.left, &mut buffers.right);
             }
         })
     });

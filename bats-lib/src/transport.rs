@@ -23,31 +23,20 @@ pub struct Transport {
 impl Transport {
     /// Create a new transport with the given sample rate and beats per minute.
     pub fn new(sample_rate: SampleRate, buffer_size: usize, bpm: f32) -> Transport {
-        let mut m = Transport {
+        Transport {
             metronome_volume: 0.0,
             transport: Vec::with_capacity(buffer_size + 1),
             bpm,
             position: Position::default(),
-            position_per_sample: Position::default(),
+            position_per_sample: Position::delta_from_bpm(sample_rate, bpm),
             sound_gen: MetronomeSynth::new(sample_rate),
-        };
-        m.set_bpm(sample_rate, bpm);
-        m
+        }
     }
 
     /// Set the beats per minute for a metronome.
     pub fn set_bpm(&mut self, sample_rate: SampleRate, bpm: f32) {
         self.bpm = bpm;
-        let beats_per_second = bpm / 60.0;
-        self.position_per_sample =
-            Position::new(beats_per_second as f64 * sample_rate.seconds_per_sample() as f64);
-    }
-
-    /// Get the next position from the metronome.
-    pub fn next_position(&mut self) -> Position {
-        let ret = self.position;
-        self.position += self.position_per_sample;
-        ret
+        self.position_per_sample = Position::delta_from_bpm(sample_rate, bpm);
     }
 
     /// Get the current bpm.
@@ -88,27 +77,48 @@ impl Transport {
         dst: &mut Vec<(u32, MidiMessage<'static>)>,
         sequence: &[MidiEvent],
     ) {
-        let midi_events_in_range = |pos: (Position, Position)| {
-            debug_assert!(
-                pos.0 <= pos.1,
-                "{left:?} <= {right:?}",
-                left = pos.0,
-                right = pos.1
-            );
-            sequence
-                .iter()
-                .filter(move |e| (pos.0..pos.1).contains(&e.position))
-                .map(|e| e.midi.clone())
+        if sequence.is_empty() {
+            return;
+        }
+        let initial_len = dst.len();
+        let placeholder_event = MidiEvent {
+            position: Position::MAX,
+            midi: MidiMessage::Reserved(0),
         };
-        dst.clear();
-        for (frame, pos) in self.iter_transport().enumerate() {
-            let (frame, left, right) = (frame as u32, pos.0, pos.1);
-            if left <= right {
-                dst.extend(midi_events_in_range(pos).map(|m| (frame, m)));
-            } else {
-                dst.extend(midi_events_in_range((pos.0, Position::MAX)).map(|m| (frame, m)));
-                dst.extend(midi_events_in_range((Position::MIN, pos.1)).map(|m| (frame, m)));
+        let transport_start = self.transport[0];
+        // TODO: Use binary search for performance improvement.
+        let start = sequence
+            .iter()
+            .position(|e| e.position >= transport_start)
+            .unwrap_or(sequence.len());
+        let mut sequence_iter = sequence
+            .iter()
+            .chain(std::iter::once(&placeholder_event))
+            .cycle()
+            .skip(start)
+            .peekable();
+        for (frame, (left, right)) in Self::iter_transport(&self.transport).enumerate() {
+            let is_in_range = |event: &&MidiEvent| {
+                if left < right {
+                    (left..right).contains(&event.position)
+                } else {
+                    !(right..left).contains(&event.position)
+                }
+            };
+            let mut has_looped = false;
+            while let Some(event) = sequence_iter.next_if(is_in_range) {
+                if event != &placeholder_event {
+                    dst.push((frame as u32, event.midi.clone()));
+                } else if has_looped {
+                    // Only allow wrapping over once per position range.
+                    continue;
+                } else {
+                    has_looped = true;
+                }
             }
+        }
+        if initial_len != 0 && dst.len() != initial_len {
+            dst.sort_by_key(|(frame, _)| *frame)
         }
     }
 
@@ -131,6 +141,9 @@ impl Transport {
                 std::iter::repeat_with(|| {
                     let ret = self.position;
                     self.position += self.position_per_sample;
+                    if self.position.beat() >= 16 {
+                        self.position.set_beat(self.position.beat() % 16);
+                    }
                     ret
                 })
                 .take(samples),
@@ -144,13 +157,7 @@ impl Transport {
         );
     }
 
-    fn iter_transport<'a>(&'a self) -> impl 'a + Iterator<Item = (Position, Position)> {
-        Self::iter_transport_impl(&self.transport)
-    }
-
-    fn iter_transport_impl<'a>(
-        transport: &'a [Position],
-    ) -> impl 'a + Iterator<Item = (Position, Position)> {
+    fn iter_transport(transport: &[Position]) -> impl '_ + Iterator<Item = (Position, Position)> {
         transport.windows(2).map(|rng| match rng {
             [a, b] => (*a, *b),
             _ => unreachable!(),
@@ -160,25 +167,22 @@ impl Transport {
     /// Populate `left` and `right` by playing the metronome synth based on the beats in
     /// `transport`.
     fn populate_metronome_sound(&mut self, left: &mut [f32], right: &mut [f32]) {
-        let low = wmidi::MidiMessage::NoteOn(Channel::Ch1, Note::C5, U7::MAX);
-        let high = wmidi::MidiMessage::NoteOn(Channel::Ch1, Note::C6, U7::MAX);
-        for (idx, pos) in Self::iter_transport_impl(&self.transport).enumerate() {
+        let default_note = wmidi::MidiMessage::NoteOn(Channel::Ch1, Note::C4, U7::MAX);
+        let new_measure_note = wmidi::MidiMessage::NoteOn(Channel::Ch1, Note::C5, U7::MAX);
+        let loop_note = wmidi::MidiMessage::NoteOn(Channel::Ch1, Note::G5, U7::MAX);
+        for (idx, pos) in Self::iter_transport(&self.transport).enumerate() {
             if pos.0.beat() != pos.1.beat() {
-                let note = if pos.1.beat() % 4 == 0 { &high } else { &low };
+                let note = match pos.1.beat() {
+                    0 => &loop_note,
+                    b if b % 4 == 0 => &new_measure_note,
+                    _ => &default_note,
+                };
                 self.sound_gen.handle_midi(note);
             }
             let (v, _) = self.sound_gen.process();
             left[idx] = v * self.metronome_volume;
             right[idx] = v * self.metronome_volume;
         }
-    }
-}
-
-impl Iterator for Transport {
-    type Item = Position;
-
-    fn next(&mut self) -> Option<Position> {
-        Some(self.next_position())
     }
 }
 
@@ -218,12 +222,9 @@ impl BatsInstrument for MetronomeSynth {
     }
 
     fn handle_midi(&mut self, msg: &wmidi::MidiMessage) {
-        match msg {
-            wmidi::MidiMessage::NoteOn(_, n, _) => {
-                self.wave = Sawtooth::new(self.sample_rate, n.to_freq_f32());
-                self.amp = 1.0;
-            }
-            _ => (),
+        if let wmidi::MidiMessage::NoteOn(_, n, _) = msg {
+            self.wave = Sawtooth::new(self.sample_rate, n.to_freq_f32());
+            self.amp = 1.0;
         }
     }
 
@@ -250,15 +251,20 @@ impl BatsInstrument for MetronomeSynth {
 
 #[cfg(test)]
 mod tests {
+    use bats_dsp::buffers::Buffers;
+
     use super::*;
 
     #[test]
     fn metronome_produces_beat_at_proper_time() {
         let bpm = 4.0 * 60.0; // 4 beats per second.
-        let m = Transport::new(SampleRate::new(16.0), 10, bpm);
+        let mut m = Transport::new(SampleRate::new(16.0), 10, bpm);
+        let mut buffers = Buffers::new(10);
+        m.process(&mut buffers.left, &mut buffers.right);
         assert_eq!(
-            m.take(9).collect::<Vec<Position>>(),
+            m.transport.clone(),
             vec![
+                Position::MAX,
                 Position::new(0.0),
                 Position::new(0.25),
                 Position::new(0.5),
@@ -268,7 +274,20 @@ mod tests {
                 Position::new(1.5),
                 Position::new(1.75),
                 Position::new(2.0),
+                Position::new(2.25),
             ]
         );
+    }
+
+    #[test]
+    fn metronome_ticks_regularly() {
+        let mut buffers = Buffers::new(44100);
+        // At 120 BPM, it should tick twice in a second. A second is 44100 samples.
+        let mut transport = Transport::new(SampleRate::new(44100.0), 44100, 120.0);
+        transport.metronome_volume = 1.0;
+        transport.set_synth_decay(SampleRate::new(44100.0), 0.0);
+        transport.process(&mut buffers.left, &mut buffers.right);
+        assert_eq!(buffers.left.iter().filter(|v| 0.0 != **v).count(), 2);
+        assert_eq!(buffers.right.iter().filter(|v| 0.0 != **v).count(), 2);
     }
 }

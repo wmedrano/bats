@@ -7,9 +7,12 @@ use self::metadata::Metadata;
 pub mod metadata;
 pub mod toof;
 
+/// Contains a midi event along with its `Position` timestamp.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MidiEvent {
+    /// The position of the midi event.
     pub position: Position,
+    /// The midi event.
     pub midi: MidiMessage<'static>,
 }
 
