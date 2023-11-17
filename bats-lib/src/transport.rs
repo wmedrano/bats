@@ -1,7 +1,9 @@
+use std::ops::Range;
+
 use bats_dsp::{position::Position, sample_rate::SampleRate, sawtooth::Sawtooth};
 use wmidi::{Channel, MidiMessage, Note, U7};
 
-use crate::plugin::{BatsInstrument, MidiEvent};
+use crate::plugin::BatsInstrument;
 
 /// Tracks position according to the specified BPM.
 #[derive(Clone, Debug)]
@@ -33,6 +35,14 @@ impl Transport {
         }
     }
 
+    /// Create a new transport and populate the transport values. Equivalent to creating a new
+    /// `Transport` and calling `process` with a buffer of size `buffer_size`.
+    pub fn new_prepopulated(sample_rate: SampleRate, buffer_size: usize, bpm: f32) -> Transport {
+        let mut t = Transport::new(sample_rate, buffer_size, bpm);
+        t.populate_transport(buffer_size);
+        t
+    }
+
     /// Set the beats per minute for a metronome.
     pub fn set_bpm(&mut self, sample_rate: SampleRate, bpm: f32) {
         self.bpm = bpm;
@@ -54,74 +64,6 @@ impl Transport {
         self.sound_gen.amp_delta = -1.0 / frames;
     }
 
-    /// Push the frame timed items from `midi_iter` to the sequence `dst`.
-    pub fn push_to_sequence<'a>(
-        &self,
-        dst: &mut Vec<MidiEvent>,
-        midi_iter: impl 'a + Iterator<Item = &'a (u32, MidiMessage<'static>)>,
-    ) {
-        for (frame, midi) in midi_iter {
-            let position = self.transport[*frame as usize + 1];
-            dst.push(MidiEvent {
-                position,
-                midi: midi.clone(),
-            });
-        }
-        dst.sort_by_key(|e| e.position);
-    }
-
-    /// Push the events in `sequence` onto `dst`. The events are paired (and sorted) with the frame
-    /// they appear in.
-    pub fn sequence_to_frames(
-        &self,
-        dst: &mut Vec<(u32, MidiMessage<'static>)>,
-        sequence: &[MidiEvent],
-    ) {
-        if sequence.is_empty() {
-            return;
-        }
-        let initial_len = dst.len();
-        let placeholder_event = MidiEvent {
-            position: Position::MAX,
-            midi: MidiMessage::Reserved(0),
-        };
-        let transport_start = self.transport[0];
-        // TODO: Use binary search for performance improvement.
-        let start = sequence
-            .iter()
-            .position(|e| e.position >= transport_start)
-            .unwrap_or(sequence.len());
-        let mut sequence_iter = sequence
-            .iter()
-            .chain(std::iter::once(&placeholder_event))
-            .cycle()
-            .skip(start)
-            .peekable();
-        for (frame, (left, right)) in Self::iter_transport(&self.transport).enumerate() {
-            let is_in_range = |event: &&MidiEvent| {
-                if left < right {
-                    (left..right).contains(&event.position)
-                } else {
-                    !(right..left).contains(&event.position)
-                }
-            };
-            let mut has_looped = false;
-            while let Some(event) = sequence_iter.next_if(is_in_range) {
-                if event != &placeholder_event {
-                    dst.push((frame as u32, event.midi.clone()));
-                } else if has_looped {
-                    // Only allow wrapping over once per position range.
-                    continue;
-                } else {
-                    has_looped = true;
-                }
-            }
-        }
-        if initial_len != 0 && dst.len() != initial_len {
-            dst.sort_by_key(|(frame, _)| *frame)
-        }
-    }
-
     /// Populate `transport` with the right position values. `left` and `right` are filled with the
     /// signal for the metronome synth.
     pub fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
@@ -134,21 +76,16 @@ impl Transport {
     /// always be the last element of the previous value. If there is no previous value then
     /// `Position::MAX` will be used.
     fn populate_transport(&mut self, samples: usize) {
-        let previous = self.transport.pop().unwrap_or(Position::MAX);
         self.transport.clear();
-        self.transport.extend(
-            std::iter::once(previous).chain(
-                std::iter::repeat_with(|| {
-                    let ret = self.position;
-                    self.position += self.position_per_sample;
-                    if self.position.beat() >= 16 {
-                        self.position.set_beat(self.position.beat() % 16);
-                    }
-                    ret
-                })
-                .take(samples),
-            ),
-        );
+        self.transport.extend((0..samples).map(|_| {
+            let ret = self.position;
+            self.position += self.position_per_sample;
+            if self.position.beat() >= 16 {
+                self.position.set_beat(self.position.beat() % 16);
+            }
+            ret
+        }));
+        self.transport.push(self.position);
         debug_assert!(
             self.transport.len() == samples + 1,
             "{} == {} + 1",
@@ -157,21 +94,35 @@ impl Transport {
         );
     }
 
-    fn iter_transport(transport: &[Position]) -> impl '_ + Iterator<Item = (Position, Position)> {
-        transport.windows(2).map(|rng| match rng {
-            [a, b] => (*a, *b),
+    /// Iterate over all values in the transport.
+    pub fn iter_transport(&self) -> impl '_ + Iterator<Item = Range<Position>> {
+        self.transport.windows(2).map(|rng| match rng {
+            [a, b] => *a..*b,
             _ => unreachable!(),
         })
+    }
+
+    /// Get the range for the given frame.
+    pub fn range_for_frame(&self, frame: u32) -> Range<Position> {
+        self.transport[frame as usize]..self.transport[(frame + 1) as usize]
     }
 
     /// Populate `left` and `right` by playing the metronome synth based on the beats in
     /// `transport`.
     fn populate_metronome_sound(&mut self, left: &mut [f32], right: &mut [f32]) {
-        let default_note = wmidi::MidiMessage::NoteOn(Channel::Ch1, Note::C4, U7::MAX);
-        let new_measure_note = wmidi::MidiMessage::NoteOn(Channel::Ch1, Note::C5, U7::MAX);
-        let loop_note = wmidi::MidiMessage::NoteOn(Channel::Ch1, Note::G5, U7::MAX);
-        for (idx, pos) in Self::iter_transport(&self.transport).enumerate() {
-            if pos.0.beat() != pos.1.beat() {
+        let default_note = MidiMessage::NoteOn(Channel::Ch1, Note::C4, U7::MAX);
+        let new_measure_note = MidiMessage::NoteOn(Channel::Ch1, Note::C5, U7::MAX);
+        let loop_note = MidiMessage::NoteOn(Channel::Ch1, Note::G5, U7::MAX);
+        for (idx, pos) in {
+            let transport: &[Position] = &self.transport;
+            transport.windows(2).map(|rng| match rng {
+                [a, b] => (*a, *b),
+                _ => unreachable!(),
+            })
+        }
+        .enumerate()
+        {
+            if pos.0.beat() != pos.1.beat() || pos.0 == Position::MIN {
                 let note = match pos.1.beat() {
                     0 => &loop_note,
                     b if b % 4 == 0 => &new_measure_note,
@@ -221,8 +172,8 @@ impl BatsInstrument for MetronomeSynth {
         }
     }
 
-    fn handle_midi(&mut self, msg: &wmidi::MidiMessage) {
-        if let wmidi::MidiMessage::NoteOn(_, n, _) = msg {
+    fn handle_midi(&mut self, msg: &MidiMessage) {
+        if let MidiMessage::NoteOn(_, n, _) = msg {
             self.wave = Sawtooth::new(self.sample_rate, n.to_freq_f32());
             self.amp = 1.0;
         }
@@ -256,7 +207,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn metronome_produces_beat_at_proper_time() {
+    fn transport_produces_beat_at_proper_time() {
         let bpm = 4.0 * 60.0; // 4 beats per second.
         let mut m = Transport::new(SampleRate::new(16.0), 10, bpm);
         let mut buffers = Buffers::new(10);
@@ -264,7 +215,6 @@ mod tests {
         assert_eq!(
             m.transport.clone(),
             vec![
-                Position::MAX,
                 Position::new(0.0),
                 Position::new(0.25),
                 Position::new(0.5),
@@ -275,6 +225,7 @@ mod tests {
                 Position::new(1.75),
                 Position::new(2.0),
                 Position::new(2.25),
+                Position::new(2.5),
             ]
         );
     }

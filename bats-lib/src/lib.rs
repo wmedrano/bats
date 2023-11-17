@@ -113,12 +113,14 @@ mod tests {
 
     #[test]
     fn no_input_produces_silence() {
-        let mut left = [1.0, 2.0, 3.0];
-        let mut right = [4.0, 5.0, 6.0];
-        let mut b = Bats::new(SampleRate::new(44100.0), left.len());
-        b.process(&[], &mut left, &mut right);
-        assert_eq!(left, [0.0, 0.0, 0.0]);
-        assert_eq!(right, [0.0, 0.0, 0.0]);
+        let mut buffers = Buffers {
+            left: vec![1.0, 2.0, 3.0],
+            right: vec![4.0, 5.0, 6.0],
+        };
+        assert!(!buffers.is_zero());
+        let mut b = Bats::new(SampleRate::new(44100.0), buffers.len());
+        b.process(&[], &mut buffers.left, &mut buffers.right);
+        assert!(buffers.is_zero());
     }
 
     #[test]
@@ -160,13 +162,7 @@ mod tests {
                 wmidi::MidiMessage::NoteOn(Channel::Ch1, Note::C3, U7::MAX),
             )],
         );
-        assert_eq!(
-            buffers,
-            Buffers {
-                left: vec![0.0, 0.0, 0.0],
-                right: vec![0.0, 0.0, 0.0]
-            }
-        );
+        assert!(buffers.is_zero());
     }
 
     #[test]
@@ -187,12 +183,6 @@ mod tests {
                 wmidi::MidiMessage::NoteOn(Channel::Ch1, Note::C3, U7::MAX),
             )],
         );
-        assert_ne!(
-            buffers,
-            Buffers {
-                left: vec![0.0, 0.0, 0.0],
-                right: vec![0.0, 0.0, 0.0]
-            }
-        );
+        assert!(!buffers.is_zero());
     }
 }

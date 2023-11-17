@@ -91,6 +91,11 @@ impl Buffers {
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
+
+    /// Returns true if all samples are `0.0`.
+    pub fn is_zero(&self) -> bool {
+        self.left.iter().all(|v| *v == 0.0) && self.right.iter().all(|v| *v == 0.0)
+    }
 }
 
 impl fmt::Debug for Buffers {

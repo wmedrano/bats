@@ -78,12 +78,10 @@ impl std::ops::AddAssign for Position {
 
 impl std::fmt::Debug for Position {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let beat = self.beat();
-        let sub_beat = self.sub_beat();
-        f.debug_struct("Position")
-            .field("beat", &beat)
-            .field("sub_beat", &sub_beat)
-            .finish()
+        let whole = self.beat() as f64;
+        let fract = self.sub_beat() as f64 / (1u64 << 32) as f64;
+        let beat = whole + fract;
+        f.debug_struct("Position").field("beat", &beat).finish()
     }
 }
 
@@ -127,6 +125,15 @@ mod tests {
         assert_eq!(
             Position::delta_from_bpm(SampleRate::new(16.0), 60.0),
             Position::new(1.0 / 16.0)
+        );
+    }
+
+    #[test]
+    fn to_debug() {
+        let debug_string = format!("{:?}", Position::new(4.5));
+        assert!(
+            debug_string.contains("4.5"),
+            "\"{debug_string}\" does not contain 4.5."
         );
     }
 }
