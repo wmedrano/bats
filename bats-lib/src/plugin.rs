@@ -1,10 +1,20 @@
 use anyhow::anyhow;
-use bats_dsp::buffers::Buffers;
+use bats_dsp::{buffers::Buffers, position::Position};
+use wmidi::MidiMessage;
 
 use self::metadata::Metadata;
 
 pub mod metadata;
 pub mod toof;
+
+/// Contains a midi event along with its `Position` timestamp.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MidiEvent {
+    /// The position of the midi event.
+    pub position: Position,
+    /// The midi event.
+    pub midi: MidiMessage<'static>,
+}
 
 /// Defines a generic instrument plugin.
 pub trait BatsInstrument {
@@ -12,7 +22,7 @@ pub trait BatsInstrument {
     fn metadata(&self) -> &'static Metadata;
 
     /// Handle a midi message.
-    fn handle_midi(&mut self, msg: &wmidi::MidiMessage);
+    fn handle_midi(&mut self, msg: &MidiMessage);
 
     /// Produce the next samples in the frame.
     fn process(&mut self) -> (f32, f32);
@@ -31,13 +41,13 @@ pub trait BatsInstrument {
     ///
     /// Prefer using this default behavior unless benchmarking shows significant performance
     /// improvements.
-    fn process_batch(
+    fn process_batch<'a>(
         &mut self,
-        midi_in: &[(u32, wmidi::MidiMessage<'static>)],
+        midi_in: impl 'a + Iterator<Item = (u32, &'a MidiMessage<'static>)>,
         output: &mut Buffers,
     ) {
         let sample_count = output.len();
-        let mut midi_iter = midi_in.iter().peekable();
+        let mut midi_iter = midi_in.peekable();
         for i in 0..sample_count {
             while let Some((_, msg)) = midi_iter.next_if(|(frame, _)| *frame <= i as u32) {
                 self.handle_midi(msg);
@@ -55,10 +65,10 @@ pub trait BatsInstrumentExt: BatsInstrument {
     fn process_to_buffers(
         &mut self,
         sample_count: usize,
-        midi_in: &[(u32, wmidi::MidiMessage<'static>)],
+        midi_in: &[(u32, MidiMessage<'static>)],
     ) -> Buffers {
         let mut buffers = Buffers::new(sample_count);
-        self.process_batch(midi_in, &mut buffers);
+        self.process_batch(midi_in.iter().map(|(a, b)| (*a, b)), &mut buffers);
         buffers
     }
 

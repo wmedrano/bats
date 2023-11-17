@@ -127,7 +127,7 @@ impl Ui {
                             .formatted(self.bats_state.borrow().metronome_volume())
                     )
                 }
-                Item::Back => format!("Back"),
+                Item::Back => "Back".to_string(),
             },
         )
         .with_extra_event_handler(|event, selected| match (event, selected) {

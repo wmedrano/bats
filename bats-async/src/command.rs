@@ -8,8 +8,8 @@ pub enum Command {
     None,
     /// Set the metrenome.
     SetMetronomeVolume(f32),
-    /// Set the BPM of the metronome.
-    SetMetronomeBpm(f32),
+    /// Set the BPM of the transport.
+    SetTransportBpm(f32),
     /// Add a new track.
     SetPlugin {
         track_id: usize,
@@ -33,14 +33,14 @@ impl Command {
         match self {
             Command::None => Command::None,
             Command::SetMetronomeVolume(v) => {
-                let old = b.metronome.volume;
-                b.metronome.volume = v;
+                let old = b.transport.metronome_volume;
+                b.transport.metronome_volume = v;
                 Command::SetMetronomeVolume(old)
             }
-            Command::SetMetronomeBpm(bpm) => {
-                let previous_bpm = b.metronome.bpm();
-                b.metronome.set_bpm(b.sample_rate, bpm);
-                Command::SetMetronomeBpm(previous_bpm)
+            Command::SetTransportBpm(bpm) => {
+                let previous_bpm = b.transport.bpm();
+                b.transport.set_bpm(b.sample_rate, bpm);
+                Command::SetTransportBpm(previous_bpm)
             }
             Command::SetPlugin { track_id, plugin } => match b.tracks.get_mut(track_id) {
                 None => Command::None,
@@ -126,21 +126,21 @@ mod tests {
     #[test]
     fn set_metronome_volume_sets_new_volume_and_returns_old_as_undo() {
         let mut b = Bats::new(SampleRate::new(44100.0), 64);
-        b.metronome.volume = 1.0;
+        b.transport.metronome_volume = 1.0;
 
         let undo = Command::SetMetronomeVolume(0.5).execute(&mut b);
-        assert_eq!(b.metronome.volume, 0.5);
+        assert_eq!(b.transport.metronome_volume, 0.5);
         assert_eq!(undo, Command::SetMetronomeVolume(1.0));
     }
 
     #[test]
     fn metrenome_set_bpm() {
         let mut b = Bats::new(SampleRate::new(44100.0), 64);
-        b.metronome.set_bpm(b.sample_rate, 100.0);
+        b.transport.set_bpm(b.sample_rate, 100.0);
 
-        let undo = Command::SetMetronomeBpm(90.0).execute(&mut b);
-        assert_eq!(b.metronome.bpm(), 90.0);
-        assert_eq!(undo, Command::SetMetronomeBpm(100.0));
+        let undo = Command::SetTransportBpm(90.0).execute(&mut b);
+        assert_eq!(b.transport.bpm(), 90.0);
+        assert_eq!(undo, Command::SetTransportBpm(100.0));
     }
 
     #[test]

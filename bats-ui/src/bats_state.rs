@@ -4,7 +4,8 @@ use bats_async::{command::Command, CommandSender};
 use bats_dsp::sample_rate::SampleRate;
 use bats_lib::{
     plugin::{metadata::Metadata, toof::Toof, BatsInstrument},
-    Bats, Track,
+    track::Track,
+    Bats,
 };
 use log::{error, info};
 
@@ -76,14 +77,14 @@ impl TrackDetails {
 impl BatsState {
     /// Create a new `BatsState`.
     pub fn new(bats: &Bats, commands: CommandSender) -> BatsState {
-        let bpm = bats.metronome.bpm();
+        let bpm = bats.transport.bpm();
         let tracks = core::array::from_fn(|idx| TrackDetails::new(idx, &bats.tracks[idx]));
         let armed_track = bats.armed_track;
         BatsState {
             commands,
             armed_track,
             bpm,
-            metronome_volume: bats.metronome.volume,
+            metronome_volume: bats.transport.metronome_volume,
             tracks,
             sample_rate: bats.sample_rate,
             buffer_size: bats.buffer_size,
@@ -133,7 +134,7 @@ impl BatsState {
     /// Modify the bpm.
     pub fn modify_bpm(&mut self, f: impl Fn(f32) -> f32) {
         self.bpm = f(self.bpm);
-        self.commands.send(Command::SetMetronomeBpm(self.bpm));
+        self.commands.send(Command::SetTransportBpm(self.bpm));
     }
 
     // The current BPM.

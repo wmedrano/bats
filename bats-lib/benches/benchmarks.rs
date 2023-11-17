@@ -44,25 +44,27 @@ fn bats_benchmark(c: &mut Criterion) {
     });
 }
 
-fn metronome_benchmark(c: &mut Criterion) {
-    c.bench_function(&format!("metronome_new"), |b| {
+fn transport_benchmark(c: &mut Criterion) {
+    c.bench_function(&format!("transport_new"), |b| {
         b.iter(move || {
-            let mut metronome = black_box(bats_lib::metronome::Metronome::new(
+            black_box(bats_lib::transport::Transport::new(
                 SampleRate::new(SAMPLE_RATE),
+                BUFFER_SIZE,
                 120.0,
-            ));
-            metronome.next_position()
+            ))
         })
     });
 
-    c.bench_function(&format!("metronome_tick"), |b| {
-        let mut metronome = black_box(bats_lib::metronome::Metronome::new(
+    c.bench_function(&format!("transport_tick"), |b| {
+        let mut transport = black_box(bats_lib::transport::Transport::new(
             SampleRate::new(SAMPLE_RATE),
+            BUFFER_SIZE,
             120.0,
         ));
+        let mut buffers = Buffers::new(BUFFER_SIZE);
         b.iter(move || {
             for _ in 0..BUFFER_SIZE {
-                metronome.next_position();
+                transport.process(&mut buffers.left, &mut buffers.right);
             }
         })
     });
@@ -80,7 +82,7 @@ fn toof_benchmark(c: &mut Criterion) {
         ]);
         let midi_ref = black_box(&midi);
         b.iter(move || {
-            toof.process_batch(midi_ref, &mut buffers);
+            toof.process_batch(midi_ref.iter().map(|(a, b)| (*a, b)), &mut buffers);
         })
     });
     c.bench_function(&format!("toof_process_no_filter"), |b| {
@@ -95,10 +97,10 @@ fn toof_benchmark(c: &mut Criterion) {
         ]);
         let midi_ref = black_box(&midi);
         b.iter(move || {
-            toof.process_batch(midi_ref, &mut buffers);
+            toof.process_batch(midi_ref.iter().map(|(a, b)| (*a, b)), &mut buffers);
         })
     });
 }
 
-criterion_group!(benches, bats_benchmark, metronome_benchmark, toof_benchmark);
+criterion_group!(benches, bats_benchmark, transport_benchmark, toof_benchmark);
 criterion_main!(benches);
