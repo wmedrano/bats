@@ -33,14 +33,16 @@ pub struct TrackProcessContext<'a> {
 }
 
 impl Track {
+    /// The capacity for sequences.
+    pub const SEQUENCE_CAPACITY: usize = 4096;
+
     /// Create a new track.
     pub fn new(buffer_size: usize) -> Track {
         Track {
             plugin: None,
             volume: 1.0,
             output: Buffers::new(buffer_size),
-            // TODO: Determine the right capacity for sequences.
-            sequence: Vec::with_capacity(4096),
+            sequence: Vec::with_capacity(Track::SEQUENCE_CAPACITY),
         }
     }
 

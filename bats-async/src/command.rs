@@ -1,4 +1,8 @@
-use bats_lib::{plugin::toof::Toof, plugin::BatsInstrument, Bats};
+use bats_lib::{
+    plugin::toof::Toof,
+    plugin::{BatsInstrument, MidiEvent},
+    Bats,
+};
 use log::error;
 
 /// Contains commands for bats.
@@ -24,6 +28,11 @@ pub enum Command {
         track_id: usize,
         param_id: u32,
         value: f32,
+    },
+    /// Set the sequence for the track.
+    SetSequence {
+        track_id: usize,
+        sequence: Vec<MidiEvent>,
     },
 }
 
@@ -97,14 +106,28 @@ impl Command {
                     Command::None
                 }
             },
+            Command::SetSequence {
+                track_id,
+                mut sequence,
+            } => match b.tracks.get_mut(track_id) {
+                Some(t) => {
+                    std::mem::swap(&mut sequence, &mut t.sequence);
+                    Command::SetSequence { track_id, sequence }
+                }
+                None => {
+                    error!("track {track_id} does not exist, will not clear the sequence.");
+                    Command::None
+                }
+            },
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use bats_dsp::sample_rate::SampleRate;
+    use bats_dsp::{position::Position, sample_rate::SampleRate};
     use bats_lib::plugin::toof::Toof;
+    use wmidi::MidiMessage;
 
     use super::*;
 
@@ -245,5 +268,39 @@ mod tests {
         }
         .execute(&mut b);
         assert_eq!(undo, Command::None);
+    }
+
+    #[test]
+    fn set_sequence_sets_sequence_on_track() {
+        let mut b = Bats::new(SampleRate::new(44100.0), 64);
+        b.tracks[4].sequence = vec![MidiEvent {
+            position: Position::new(0.0),
+            midi: MidiMessage::TuneRequest,
+        }];
+        let undo = Command::SetSequence {
+            track_id: 4,
+            sequence: vec![MidiEvent {
+                position: Position::new(1.2),
+                midi: MidiMessage::Reset,
+            }],
+        }
+        .execute(&mut b);
+        assert_eq!(
+            undo,
+            Command::SetSequence {
+                track_id: 4,
+                sequence: vec![MidiEvent {
+                    position: Position::new(0.0),
+                    midi: MidiMessage::TuneRequest,
+                },]
+            }
+        );
+        assert_eq!(
+            b.tracks[4].sequence,
+            vec![MidiEvent {
+                position: Position::new(1.2),
+                midi: MidiMessage::Reset
+            }]
+        );
     }
 }

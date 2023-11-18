@@ -16,8 +16,8 @@ jobs:
               run: sudo apt update
             - name: Install dependencies
               run: |
-               # Most users will be on JACK spa (aka pipewire), but
-               # pipewire is harder to set up on GitHub actions.
+               # Many users will alsobe on JACK spa (aka pipewire),
+               # but pipewire is harder to set up on GitHub actions.
                sudo apt install jackd libjack-dev libjack0
             - name: Run JACK server
               run: jackd -r -ddummy -r44100 -p1024 &

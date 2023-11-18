@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use bats_async::{command::Command, CommandSender};
 use bats_dsp::sample_rate::SampleRate;
 use bats_lib::{
-    plugin::{metadata::Metadata, toof::Toof, BatsInstrument},
+    plugin::{metadata::Metadata, toof::Toof, BatsInstrument, MidiEvent},
     track::Track,
     Bats,
 };
@@ -12,9 +12,9 @@ use log::{error, info};
 /// Contains state for dealing with
 pub struct BatsState {
     /// The sample rate.
-    pub sample_rate: SampleRate,
+    sample_rate: SampleRate,
     /// The buffer size.
-    pub buffer_size: usize,
+    buffer_size: usize,
     /// Used to send commands to bats.
     commands: CommandSender,
     /// The armed track.
@@ -91,6 +91,16 @@ impl BatsState {
         }
     }
 
+    /// Get the sample rate.
+    pub fn sample_rate(&self) -> SampleRate {
+        self.sample_rate
+    }
+
+    /// Get the buffer size.
+    pub fn buffer_size(&self) -> usize {
+        self.buffer_size
+    }
+
     /// Set the plugin for the track.
     pub fn set_plugin(&mut self, track_id: usize, plugin: Option<Box<Toof>>) {
         info!(
@@ -137,7 +147,7 @@ impl BatsState {
         self.commands.send(Command::SetTransportBpm(self.bpm));
     }
 
-    // The current BPM.
+    /// The current BPM.
     pub fn bpm(&self) -> f32 {
         self.bpm
     }
@@ -213,6 +223,13 @@ impl BatsState {
             param_id,
             value,
         });
+    }
+
+    /// Set the sequence for the track.
+    pub fn set_sequence(&mut self, track_id: usize, mut sequence: Vec<MidiEvent>) {
+        sequence.reserve(Track::SEQUENCE_CAPACITY);
+        self.commands
+            .send(Command::SetSequence { track_id, sequence });
     }
 }
 

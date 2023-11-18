@@ -10,3 +10,4 @@ bats-dsp = { path = "../bats-dsp" }
 bats-lib = { path = "../bats-lib" }
 crossbeam-channel = "0.5"
 log = "0.4"
+wmidi = "4.0"

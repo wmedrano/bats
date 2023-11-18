@@ -97,7 +97,7 @@ impl Ui {
                     &self.event_poll,
                     &mut self.terminal,
                 )? {
-                    let plugin = plugin_builder.build(self.bats_state.borrow().sample_rate);
+                    let plugin = plugin_builder.build(self.bats_state.borrow().sample_rate());
                     self.bats_state.borrow_mut().set_plugin(track.id, plugin);
                 }
             }
@@ -180,11 +180,13 @@ impl Ui {
             ChangeVolume,
             ChangePlugin,
             Params,
+            ClearSequence,
         }
         let menu_items = [
             TrackMenuItem::ChangeVolume,
             TrackMenuItem::ChangePlugin,
             TrackMenuItem::Params,
+            TrackMenuItem::ClearSequence,
         ];
         let mut menu =
             SelectorMenu::new("".to_string(), &menu_items, |i: &TrackMenuItem| match i {
@@ -202,6 +204,7 @@ impl Ui {
                 }
                 TrackMenuItem::ChangePlugin => "Change Plugin".to_string(),
                 TrackMenuItem::Params => "Params".to_string(),
+                TrackMenuItem::ClearSequence => "Clear Sequence".to_string(),
             })
             .with_extra_event_handler(|event, action| match (action, event) {
                 (TrackMenuItem::ChangeVolume, events::Event::Left) => {
@@ -245,7 +248,7 @@ impl Ui {
                         &self.event_poll,
                         &mut self.terminal,
                     ) {
-                        let plugin = b.build(self.bats_state.borrow().sample_rate);
+                        let plugin = b.build(self.bats_state.borrow().sample_rate());
                         self.bats_state.borrow_mut().set_plugin(track_id, plugin);
                     }
                 }
@@ -256,6 +259,10 @@ impl Ui {
                     &self.bats_state,
                     track_id,
                 )?,
+                TrackMenuItem::ClearSequence => self
+                    .bats_state
+                    .borrow_mut()
+                    .set_sequence(track_id, Vec::new()),
             }
         }
     }
