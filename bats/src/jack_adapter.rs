@@ -95,7 +95,7 @@ impl jack::ProcessHandler for ProcessHandler {
                 }
             }
         }
-        for _undo in self.commands.execute_all(&mut self.bats) {}
+        self.commands.execute_all(&mut self.bats);
         self.bats.process(
             self.midi_buffer.as_slice(),
             self.ports.left.as_mut_slice(ps),

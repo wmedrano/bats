@@ -1,6 +1,6 @@
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap};
 
-use bats_async::{command::Command, CommandSender};
+use bats_async::{command::Command, notification::Notification, CommandSender};
 use bats_dsp::sample_rate::SampleRate;
 use bats_lib::{
     plugin::{metadata::Metadata, toof::Toof, BatsInstrument, MidiEvent},
@@ -17,6 +17,11 @@ pub struct BatsState {
     buffer_size: usize,
     /// Used to send commands to bats.
     commands: CommandSender,
+    /// The inner state.
+    state: RefCell<InnerState>,
+}
+
+struct InnerState {
     /// The armed track.
     armed_track: usize,
     /// The current BPM.
@@ -82,32 +87,49 @@ impl BatsState {
         let armed_track = bats.armed_track;
         BatsState {
             commands,
-            armed_track,
-            bpm,
-            metronome_volume: bats.transport.metronome_volume,
-            tracks,
             sample_rate: bats.sample_rate,
             buffer_size: bats.buffer_size,
+            state: InnerState {
+                armed_track,
+                bpm,
+                metronome_volume: bats.transport.metronome_volume,
+                tracks,
+            }
+            .into(),
+        }
+    }
+
+    /// Handle all notifications.
+    pub fn handle_notifications(&self) {
+        for notification in self.commands.notifications() {
+            match notification {
+                Notification::Undo(_) => {
+                    // TODO: Implement undo functionality.
+                }
+            }
         }
     }
 
     /// Get the sample rate.
     pub fn sample_rate(&self) -> SampleRate {
+        self.handle_notifications();
         self.sample_rate
     }
 
     /// Get the buffer size.
     pub fn buffer_size(&self) -> usize {
+        self.handle_notifications();
         self.buffer_size
     }
 
     /// Set the plugin for the track.
-    pub fn set_plugin(&mut self, track_id: usize, plugin: Option<Box<Toof>>) {
+    pub fn set_plugin(&self, track_id: usize, plugin: Option<Box<Toof>>) {
+        self.handle_notifications();
         info!(
             "Setting track {track_id} plugin to {plugin_name}.",
             plugin_name = plugin.as_ref().map(|p| p.metadata().name).unwrap_or("")
         );
-        match self.tracks.get_mut(track_id) {
+        match self.state.borrow_mut().tracks.get_mut(track_id) {
             None => {
                 error!("Could not find track with id {track_id}.");
             }
@@ -120,19 +142,22 @@ impl BatsState {
     }
 
     /// Return the currently armed track.
-    pub fn armed(&mut self) -> usize {
-        self.armed_track
+    pub fn armed(&self) -> usize {
+        self.handle_notifications();
+        self.state.borrow().armed_track
     }
 
     /// Set the armed plugin by id.
-    pub fn set_armed(&mut self, armed: usize) {
-        self.armed_track = armed;
-        self.commands.send(Command::SetArmedTrack(self.armed_track));
+    pub fn set_armed(&self, armed: usize) {
+        self.handle_notifications();
+        self.state.borrow_mut().armed_track = armed;
+        self.commands.send(Command::SetArmedTrack(armed));
     }
 
     /// Set the track volume.
-    pub fn modify_track_volume(&mut self, track_id: usize, f: impl Fn(&TrackDetails) -> f32) {
-        if let Some(t) = self.tracks.get_mut(track_id) {
+    pub fn modify_track_volume(&self, track_id: usize, f: impl Fn(&TrackDetails) -> f32) {
+        self.handle_notifications();
+        if let Some(t) = self.state.borrow_mut().tracks.get_mut(track_id) {
             t.volume = f(t).clamp(0.00796, 4.0);
             self.commands.send(Command::SetTrackVolume {
                 track_id,
@@ -142,42 +167,52 @@ impl BatsState {
     }
 
     /// Modify the bpm.
-    pub fn modify_bpm(&mut self, f: impl Fn(f32) -> f32) {
-        self.bpm = f(self.bpm);
-        self.commands.send(Command::SetTransportBpm(self.bpm));
+    pub fn modify_bpm(&self, f: impl Fn(f32) -> f32) {
+        self.handle_notifications();
+        let mut state = self.state.borrow_mut();
+        state.bpm = f(state.bpm);
+        self.commands.send(Command::SetTransportBpm(state.bpm));
     }
 
     /// The current BPM.
     pub fn bpm(&self) -> f32 {
-        self.bpm
+        self.handle_notifications();
+        self.state.borrow().bpm
     }
 
     /// Modify the metronome volume.
-    pub fn modify_metronome(&mut self, f: impl Fn(f32) -> f32) {
-        let v = f(self.metronome_volume).clamp(0.0, 1.0);
-        self.metronome_volume = v;
+    pub fn modify_metronome(&self, f: impl Fn(f32) -> f32) {
+        self.handle_notifications();
+        let mut state = self.state.borrow_mut();
+        let v = f(state.metronome_volume).clamp(0.0, 1.0);
+        state.metronome_volume = v;
         self.commands
-            .send(Command::SetMetronomeVolume(self.metronome_volume));
+            .send(Command::SetMetronomeVolume(state.metronome_volume));
     }
 
     /// Get the metronome volume.
     pub fn metronome_volume(&self) -> f32 {
-        self.metronome_volume
+        self.handle_notifications();
+        self.state.borrow().metronome_volume
     }
 
     /// Get all the tracks.
-    pub fn tracks(&self) -> &[TrackDetails; Bats::SUPPORTED_TRACKS] {
-        &self.tracks
+    pub fn tracks_vec(&self) -> Vec<TrackDetails> {
+        self.handle_notifications();
+        self.state.borrow().tracks.to_vec()
     }
 
     /// Get a track by its id.
-    pub fn track_by_id(&self, track_id: usize) -> Option<&TrackDetails> {
-        self.tracks.get(track_id)
+    pub fn track_by_id(&self, track_id: usize) -> Option<TrackDetails> {
+        self.handle_notifications();
+        self.state.borrow().tracks.get(track_id).cloned()
     }
 
     /// Get the param value for the given `param_id` for `track_id`.
     pub fn param(&self, track_id: usize, param_id: u32) -> f32 {
-        let track = match self.tracks.get(track_id) {
+        self.handle_notifications();
+        let state = self.state.borrow();
+        let track = match state.tracks.get(track_id) {
             Some(t) => t,
             None => {
                 error!("Attempted to get track for invalid track id {track_id}.");
@@ -197,8 +232,10 @@ impl BatsState {
 
     /// Modify the param value by applying `f`. This function also handles keeping the param valid,
     /// like adjusting according to the min and max values.
-    pub fn modify_param(&mut self, track_id: usize, param_id: u32, f: impl Fn(f32) -> f32) {
-        let track = match self.tracks.get_mut(track_id) {
+    pub fn modify_param(&self, track_id: usize, param_id: u32, f: impl Fn(f32) -> f32) {
+        self.handle_notifications();
+        let mut state = self.state.borrow_mut();
+        let track = match state.tracks.get_mut(track_id) {
             None => {
                 error!("Could not find track {track_id} to modify param {param_id}.");
                 return;
@@ -226,7 +263,8 @@ impl BatsState {
     }
 
     /// Set the sequence for the track.
-    pub fn set_sequence(&mut self, track_id: usize, mut sequence: Vec<MidiEvent>) {
+    pub fn set_sequence(&self, track_id: usize, mut sequence: Vec<MidiEvent>) {
+        self.handle_notifications();
         sequence.reserve(Track::SEQUENCE_CAPACITY);
         self.commands
             .send(Command::SetSequence { track_id, sequence });

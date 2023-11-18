@@ -1,4 +1,4 @@
-use std::{cell::RefCell, io::Stdout};
+use std::io::Stdout;
 
 use anyhow::Result;
 use bats_async::CommandSender;
@@ -26,7 +26,7 @@ pub struct Ui {
     /// The object to poll events from.
     event_poll: EventPoll,
     /// Contains bats related state information.
-    bats_state: RefCell<BatsState>,
+    bats_state: BatsState,
 }
 
 impl Ui {
@@ -48,7 +48,7 @@ impl Ui {
         Ok(Ui {
             terminal,
             event_poll: EventPoll {},
-            bats_state: RefCell::new(bats_state),
+            bats_state,
         })
     }
 
@@ -86,19 +86,19 @@ impl Ui {
 
     /// Run the track menu page. This contains all tracks.
     fn run_tracks(&mut self) -> Result<()> {
-        let tracks = self.bats_state.borrow().tracks().to_vec();
+        let tracks = self.bats_state.tracks_vec();
         let mut menu =
             SelectorMenu::new("Tracks".to_string(), tracks, |t: &TrackDetails| t.title());
         if let Some(track) = menu.run(&self.event_poll, &mut self.terminal)? {
-            let track = self.bats_state.borrow().tracks()[track.id].clone();
+            let track = self.bats_state.track_by_id(track.id).unwrap().clone();
             if track.plugin_metadata.name == "empty" {
                 if let Some(plugin_builder) = Self::select_plugin(
                     format!("Select Plugin for {}", track.title()),
                     &self.event_poll,
                     &mut self.terminal,
                 )? {
-                    let plugin = plugin_builder.build(self.bats_state.borrow().sample_rate());
-                    self.bats_state.borrow_mut().set_plugin(track.id, plugin);
+                    let plugin = plugin_builder.build(self.bats_state.sample_rate());
+                    self.bats_state.set_plugin(track.id, plugin);
                 }
             }
             self.run_single_track(track.id)?;
@@ -119,12 +119,11 @@ impl Ui {
             "Metronome".to_string(),
             [Item::Bpm, Item::Volume, Item::Back],
             |i: &Item| match i {
-                Item::Bpm => format!("BPM: {bpm}", bpm = self.bats_state.borrow().bpm()),
+                Item::Bpm => format!("BPM: {bpm}", bpm = self.bats_state.bpm()),
                 Item::Volume => {
                     format!(
                         "Volume: {volume}",
-                        volume = ParamType::Decibel
-                            .formatted(self.bats_state.borrow().metronome_volume())
+                        volume = ParamType::Decibel.formatted(self.bats_state.metronome_volume())
                     )
                 }
                 Item::Back => "Back".to_string(),
@@ -132,7 +131,7 @@ impl Ui {
         )
         .with_extra_event_handler(|event, selected| match (event, selected) {
             (events::Event::Left, Item::Volume) => {
-                self.bats_state.borrow_mut().modify_metronome(|v| {
+                self.bats_state.modify_metronome(|v| {
                     if v <= min_metronome_volume {
                         0.0
                     } else {
@@ -142,7 +141,7 @@ impl Ui {
                 MenuAction::Redraw
             }
             (events::Event::Right, Item::Volume) => {
-                self.bats_state.borrow_mut().modify_metronome(|v| {
+                self.bats_state.modify_metronome(|v| {
                     if v < min_metronome_volume {
                         min_metronome_volume
                     } else {
@@ -152,11 +151,11 @@ impl Ui {
                 MenuAction::Redraw
             }
             (events::Event::Left, Item::Bpm) => {
-                self.bats_state.borrow_mut().modify_bpm(|v| v - 1.0);
+                self.bats_state.modify_bpm(|v| v - 1.0);
                 MenuAction::Redraw
             }
             (events::Event::Right, Item::Bpm) => {
-                self.bats_state.borrow_mut().modify_bpm(|v| v + 1.0);
+                self.bats_state.modify_bpm(|v| v + 1.0);
                 MenuAction::Redraw
             }
             _ => MenuAction::None,
@@ -174,7 +173,7 @@ impl Ui {
     /// Run the page for a single track. This has links to other pages for the track such as
     /// changing the plugin and adjusting the params.
     fn run_single_track(&mut self, track_id: usize) -> Result<()> {
-        self.bats_state.borrow_mut().set_armed(track_id);
+        self.bats_state.set_armed(track_id);
         #[derive(Copy, Clone)]
         enum TrackMenuItem {
             ChangeVolume,
@@ -193,13 +192,8 @@ impl Ui {
                 TrackMenuItem::ChangeVolume => {
                     format!(
                         "Volume: {volume}",
-                        volume = ParamType::Decibel.formatted(
-                            self.bats_state
-                                .borrow()
-                                .track_by_id(track_id)
-                                .unwrap()
-                                .volume
-                        )
+                        volume = ParamType::Decibel
+                            .formatted(self.bats_state.track_by_id(track_id).unwrap().volume)
                     )
                 }
                 TrackMenuItem::ChangePlugin => "Change Plugin".to_string(),
@@ -209,13 +203,11 @@ impl Ui {
             .with_extra_event_handler(|event, action| match (action, event) {
                 (TrackMenuItem::ChangeVolume, events::Event::Left) => {
                     self.bats_state
-                        .borrow_mut()
                         .modify_track_volume(track_id, |v| v.volume / 1.05);
                     MenuAction::Redraw
                 }
                 (TrackMenuItem::ChangeVolume, events::Event::Right) => {
                     self.bats_state
-                        .borrow_mut()
                         .modify_track_volume(track_id, |v| v.volume * 1.05);
                     MenuAction::Redraw
                 }
@@ -224,11 +216,7 @@ impl Ui {
         loop {
             menu.set_title(format!(
                 "Track - {}",
-                self.bats_state
-                    .borrow()
-                    .track_by_id(track_id)
-                    .unwrap()
-                    .title()
+                self.bats_state.track_by_id(track_id).unwrap().title()
             ));
             let selected = match menu.run(&self.event_poll, &mut self.terminal)? {
                 Some(s) => s,
@@ -239,17 +227,13 @@ impl Ui {
                     if let Ok(Some(b)) = Self::select_plugin(
                         format!(
                             "Change Plugin for {}",
-                            self.bats_state
-                                .borrow()
-                                .track_by_id(track_id)
-                                .unwrap()
-                                .title()
+                            self.bats_state.track_by_id(track_id).unwrap().title()
                         ),
                         &self.event_poll,
                         &mut self.terminal,
                     ) {
-                        let plugin = b.build(self.bats_state.borrow().sample_rate());
-                        self.bats_state.borrow_mut().set_plugin(track_id, plugin);
+                        let plugin = b.build(self.bats_state.sample_rate());
+                        self.bats_state.set_plugin(track_id, plugin);
                     }
                 }
                 TrackMenuItem::ChangeVolume => (),
@@ -259,10 +243,7 @@ impl Ui {
                     &self.bats_state,
                     track_id,
                 )?,
-                TrackMenuItem::ClearSequence => self
-                    .bats_state
-                    .borrow_mut()
-                    .set_sequence(track_id, Vec::new()),
+                TrackMenuItem::ClearSequence => self.bats_state.set_sequence(track_id, Vec::new()),
             }
         }
     }
@@ -283,14 +264,13 @@ impl Ui {
     fn edit_params(
         event_poll: &EventPoll,
         terminal: &mut Terminal<CrosstermBackend<Stdout>>,
-        bats_state: &RefCell<BatsState>,
+        bats_state: &BatsState,
         track_id: usize,
     ) -> Result<()> {
-        let track = bats_state.borrow().track_by_id(track_id).unwrap().clone();
+        let track = bats_state.track_by_id(track_id).unwrap().clone();
         let title = format!("{} Params", track.title());
         let mut menu = SelectorMenu::new(title, &track.plugin_metadata.params, |p: &Param| {
             let value = bats_state
-                .borrow()
                 .track_by_id(track_id)
                 .unwrap()
                 .params
@@ -305,15 +285,11 @@ impl Ui {
         })
         .with_extra_event_handler(|event, param| match event {
             events::Event::Left => {
-                bats_state
-                    .borrow_mut()
-                    .modify_param(track_id, param.id, |v| v / 1.05);
+                bats_state.modify_param(track_id, param.id, |v| v / 1.05);
                 MenuAction::Redraw
             }
             events::Event::Right => {
-                bats_state
-                    .borrow_mut()
-                    .modify_param(track_id, param.id, |v| v * 1.05);
+                bats_state.modify_param(track_id, param.id, |v| v * 1.05);
                 MenuAction::Redraw
             }
             _ => MenuAction::None,
