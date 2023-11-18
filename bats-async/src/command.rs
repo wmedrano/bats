@@ -34,6 +34,8 @@ pub enum Command {
         track_id: usize,
         sequence: Vec<MidiEvent>,
     },
+    /// Set if recording is enabled or disabled.
+    SetRecord(bool),
 }
 
 impl Command {
@@ -119,6 +121,11 @@ impl Command {
                     Command::None
                 }
             },
+            Command::SetRecord(enabled) => {
+                let undo = Command::SetRecord(b.recording_enabled);
+                b.recording_enabled = enabled;
+                undo
+            }
         }
     }
 }
@@ -302,5 +309,31 @@ mod tests {
                 midi: MidiMessage::Reset
             }]
         );
+    }
+
+    #[test]
+    fn set_record() {
+        let mut b = Bats::new(SampleRate::new(44100.0), 64);
+        b.recording_enabled = true;
+
+        // true -> true
+        let undo = Command::SetRecord(true).execute(&mut b);
+        assert_eq!(b.recording_enabled, true);
+        assert_eq!(undo, Command::SetRecord(true));
+
+        // true -> false
+        let undo = Command::SetRecord(false).execute(&mut b);
+        assert_eq!(b.recording_enabled, false);
+        assert_eq!(undo, Command::SetRecord(true));
+
+        // false -> false
+        let undo = Command::SetRecord(false).execute(&mut b);
+        assert_eq!(b.recording_enabled, false);
+        assert_eq!(undo, Command::SetRecord(false));
+
+        // false -> true
+        let undo = Command::SetRecord(true).execute(&mut b);
+        assert_eq!(b.recording_enabled, true);
+        assert_eq!(undo, Command::SetRecord(false));
     }
 }

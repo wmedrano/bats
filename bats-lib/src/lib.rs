@@ -14,6 +14,8 @@ pub struct Bats {
     pub transport: Transport,
     /// The id of the track that should take user midi input.
     pub armed_track: usize,
+    /// True if recording to sequence is enabled.
+    pub recording_enabled: bool,
     /// The sample rate.
     pub sample_rate: SampleRate,
     /// The buffer size.
@@ -33,6 +35,7 @@ impl Bats {
         Bats {
             transport: Transport::new(sample_rate, buffer_size, 120.0),
             armed_track: 0,
+            recording_enabled: false,
             sample_rate,
             buffer_size,
             // TODO: Determine proper capacity.
@@ -53,8 +56,7 @@ impl Bats {
             let is_armed = id == self.armed_track;
             let midi_in = if is_armed { midi } else { &[] };
             track.process(TrackProcessContext {
-                /// TODO: Provide mechanism for enabling/disabling recording.
-                record_to_sequence: true,
+                record_to_sequence: self.recording_enabled,
                 transport: &self.transport,
                 midi_in,
                 tmp_midi_buffer: &mut self.midi_buffer,

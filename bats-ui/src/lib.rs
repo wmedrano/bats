@@ -113,17 +113,29 @@ impl Ui {
         enum Item {
             Bpm,
             Volume,
+            Recording,
             Back,
         }
         let mut menu = SelectorMenu::new(
             "Metronome".to_string(),
-            [Item::Bpm, Item::Volume, Item::Back],
+            [Item::Bpm, Item::Volume, Item::Recording, Item::Back],
             |i: &Item| match i {
                 Item::Bpm => format!("BPM: {bpm}", bpm = self.bats_state.bpm()),
                 Item::Volume => {
                     format!(
                         "Volume: {volume}",
                         volume = ParamType::Decibel.formatted(self.bats_state.metronome_volume())
+                    )
+                }
+                Item::Recording => {
+                    let enabled = if self.bats_state.recording_enabled() {
+                        1.0
+                    } else {
+                        0.0
+                    };
+                    format!(
+                        "Recording: {enabled}",
+                        enabled = ParamType::Bool.formatted(enabled)
                     )
                 }
                 Item::Back => "Back".to_string(),
@@ -158,12 +170,21 @@ impl Ui {
                 self.bats_state.modify_bpm(|v| v + 1.0);
                 MenuAction::Redraw
             }
+            (events::Event::Left, Item::Recording) => {
+                self.bats_state.set_recording(false);
+                MenuAction::Redraw
+            }
+            (events::Event::Right, Item::Recording) => {
+                self.bats_state.set_recording(true);
+                MenuAction::Redraw
+            }
             _ => MenuAction::None,
         });
         while let Some(item) = menu.run(&self.event_poll, &mut self.terminal)? {
             match item {
                 Item::Bpm => (),
                 Item::Volume => (),
+                Item::Recording => self.bats_state.toggle_recording(),
                 Item::Back => return Ok(()),
             }
         }

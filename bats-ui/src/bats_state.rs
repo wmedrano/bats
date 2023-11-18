@@ -24,6 +24,8 @@ pub struct BatsState {
 struct InnerState {
     /// The armed track.
     armed_track: usize,
+    /// True if recording is enabled.
+    recording_enabled: bool,
     /// The current BPM.
     bpm: f32,
     /// The volume of the metronome.
@@ -84,13 +86,13 @@ impl BatsState {
     pub fn new(bats: &Bats, commands: CommandSender) -> BatsState {
         let bpm = bats.transport.bpm();
         let tracks = core::array::from_fn(|idx| TrackDetails::new(idx, &bats.tracks[idx]));
-        let armed_track = bats.armed_track;
         BatsState {
             commands,
             sample_rate: bats.sample_rate,
             buffer_size: bats.buffer_size,
             state: InnerState {
-                armed_track,
+                armed_track: bats.armed_track,
+                recording_enabled: bats.recording_enabled,
                 bpm,
                 metronome_volume: bats.transport.metronome_volume,
                 tracks,
@@ -150,8 +152,35 @@ impl BatsState {
     /// Set the armed plugin by id.
     pub fn set_armed(&self, armed: usize) {
         self.handle_notifications();
-        self.state.borrow_mut().armed_track = armed;
+        let mut state = self.state.borrow_mut();
+        if state.armed_track == armed {
+            return;
+        }
+        state.armed_track = armed;
         self.commands.send(Command::SetArmedTrack(armed));
+    }
+
+    /// True if recording is enabled.
+    pub fn recording_enabled(&self) -> bool {
+        self.handle_notifications();
+        self.state.borrow().recording_enabled
+    }
+
+    /// Toggle if recording is enabled.
+    pub fn toggle_recording(&self) {
+        let enabled = !self.state.borrow().recording_enabled;
+        self.set_recording(enabled);
+    }
+
+    /// Set if recording is enabled.
+    pub fn set_recording(&self, enabled: bool) {
+        self.handle_notifications();
+        let mut state = self.state.borrow_mut();
+        if state.recording_enabled == enabled {
+            return;
+        }
+        state.recording_enabled = enabled;
+        self.commands.send(Command::SetRecord(enabled));
     }
 
     /// Set the track volume.
@@ -170,7 +199,7 @@ impl BatsState {
     pub fn modify_bpm(&self, f: impl Fn(f32) -> f32) {
         self.handle_notifications();
         let mut state = self.state.borrow_mut();
-        state.bpm = f(state.bpm);
+        state.bpm = f(state.bpm).clamp(10.0, 360.0);
         self.commands.send(Command::SetTransportBpm(state.bpm));
     }
 
