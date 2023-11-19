@@ -19,6 +19,8 @@ pub struct Toof {
     bypass_filter: bool,
     /// True if toof is polyphonic.
     is_polyphonic: bool,
+    /// The velocity sensitivity.
+    velocity_sensitivity: f32,
     /// The sample rate.
     sample_rate: SampleRate,
     /// Parameters for envelope.
@@ -43,6 +45,8 @@ struct ToofVoice {
     wave: Sawtooth,
     /// The envelope.
     envelope: Envelope,
+    /// The volume of this voice.
+    volume: f32,
 }
 
 impl Toof {
@@ -52,6 +56,7 @@ impl Toof {
         Box::new(Toof {
             bypass_filter: false,
             is_polyphonic: false,
+            velocity_sensitivity: 0.75,
             sample_rate,
             envelope,
             filter: MoogFilter::new(sample_rate),
@@ -59,6 +64,11 @@ impl Toof {
             filter_resonance: MoogFilter::DEFAULT_RESONANCE,
             voices: ArrayVec::new(),
         })
+    }
+
+    fn velocity_to_volume(&self, velocity: U7) -> f32 {
+        let velocity = u8::from(velocity) as f32 / u8::from(U7::MAX) as f32;
+        velocity * self.velocity_sensitivity + (1.0 - self.velocity_sensitivity)
     }
 }
 
@@ -102,6 +112,14 @@ impl BatsInstrument for Toof {
                 },
                 Param {
                     id: 5,
+                    name: "velocity sensitivity",
+                    param_type: ParamType::Percent,
+                    default_value: 0.75,
+                    min_value: 0.01,
+                    max_value: 1.0,
+                },
+                Param {
+                    id: 6,
                     name: "attack",
                     param_type: ParamType::Duration,
                     default_value: 0.01,
@@ -109,7 +127,7 @@ impl BatsInstrument for Toof {
                     max_value: 2.0,
                 },
                 Param {
-                    id: 6,
+                    id: 7,
                     name: "decay",
                     param_type: ParamType::Duration,
                     default_value: 1.0,
@@ -117,7 +135,7 @@ impl BatsInstrument for Toof {
                     max_value: 2.0,
                 },
                 Param {
-                    id: 7,
+                    id: 8,
                     name: "sustain",
                     param_type: ParamType::Decibel,
                     default_value: 1.0,
@@ -125,7 +143,7 @@ impl BatsInstrument for Toof {
                     max_value: 1.0,
                 },
                 Param {
-                    id: 8,
+                    id: 9,
                     name: "release",
                     param_type: ParamType::Duration,
                     default_value: 0.1,
@@ -161,7 +179,8 @@ impl BatsInstrument for Toof {
                     }
                 }
             }
-            MidiMessage::NoteOn(_, note, _) => {
+            MidiMessage::NoteOn(_, note, velocity) => {
+                let volume = self.velocity_to_volume(*velocity);
                 if self.is_polyphonic || self.voices.is_empty() {
                     if self.voices.is_full() {
                         self.voices.retain(|v| v.envelope.is_active());
@@ -169,9 +188,10 @@ impl BatsInstrument for Toof {
                             self.voices.remove(0);
                         }
                     }
-                    self.voices.push(ToofVoice::new(self.sample_rate, *note));
+                    self.voices
+                        .push(ToofVoice::new(self.sample_rate, *note, volume));
                 } else {
-                    self.voices[0].set_note(self.sample_rate, *note);
+                    self.voices[0].set_note(self.sample_rate, *note, volume);
                 }
             }
             MidiMessage::Reset => self.voices.clear(),
@@ -198,10 +218,11 @@ impl BatsInstrument for Toof {
                     0.49
                 }
             }
-            5 => self.envelope.attack(self.sample_rate),
-            6 => self.envelope.decay(self.sample_rate),
-            7 => self.envelope.sustain(),
-            8 => self.envelope.release(self.sample_rate),
+            5 => self.velocity_sensitivity,
+            6 => self.envelope.attack(self.sample_rate),
+            7 => self.envelope.decay(self.sample_rate),
+            8 => self.envelope.sustain(),
+            9 => self.envelope.release(self.sample_rate),
             _ => 0.0,
         }
     }
@@ -225,10 +246,11 @@ impl BatsInstrument for Toof {
             4 => {
                 self.is_polyphonic = value >= 0.5;
             }
-            5 => self.envelope.set_attack(self.sample_rate, value),
-            6 => self.envelope.set_decay(self.sample_rate, value),
-            7 => self.envelope.set_sustain(self.sample_rate, value),
-            8 => self.envelope.set_release(self.sample_rate, value),
+            5 => self.velocity_sensitivity = value,
+            6 => self.envelope.set_attack(self.sample_rate, value),
+            7 => self.envelope.set_decay(self.sample_rate, value),
+            8 => self.envelope.set_sustain(self.sample_rate, value),
+            9 => self.envelope.set_release(self.sample_rate, value),
             _ => (),
         }
     }
@@ -241,26 +263,28 @@ impl BatsInstrument for Toof {
 
 impl ToofVoice {
     /// Create a new Toof voice.
-    fn new(sample_rate: SampleRate, note: Note) -> ToofVoice {
+    fn new(sample_rate: SampleRate, note: Note, volume: f32) -> ToofVoice {
         ToofVoice {
             note,
             wave: Sawtooth::new(sample_rate, note.to_freq_f32()),
             envelope: Envelope::new(),
+            volume,
         }
     }
 
     /// Set a new note for the current voice.
-    fn set_note(&mut self, sample_rate: SampleRate, note: Note) {
+    fn set_note(&mut self, sample_rate: SampleRate, note: Note, volume: f32) {
         self.note = note;
         self.wave.set_frequency(sample_rate, note.to_freq_f32());
         self.envelope = Envelope::new();
+        self.volume = volume;
     }
 
     /// Retrieve the next sample.
     fn next_sample(&mut self, envelope: &EnvelopeParams) -> f32 {
         let wave_amp = self.wave.next_sample();
         let env_amp = self.envelope.next_sample(envelope);
-        wave_amp * env_amp
+        self.volume * wave_amp * env_amp
     }
 }
 
@@ -364,6 +388,24 @@ mod tests {
             .unwrap_or(u32::MAX);
         let mut toof = Toof::new(SampleRate::new(44100.0));
         toof.set_param(final_param_id, 0.0);
+    }
+
+    #[test]
+    fn bool_params_have_proper_ranges() {
+        let params = Toof::new(SampleRate::new(44100.0)).metadata().params;
+        for param in params {
+            if param.param_type != ParamType::Bool {
+                continue;
+            }
+            // Bools must be within the small range to work well with the UI.
+            let min_to_max_range = param.min_value..param.max_value;
+            assert_eq!(min_to_max_range, (0.49..0.51));
+            assert!(
+                min_to_max_range.contains(&param.default_value),
+                "{min_to_max_range:?}.contains(&{default:?})",
+                default = param.default_value
+            );
+        }
     }
 
     #[test]
