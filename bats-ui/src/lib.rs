@@ -58,13 +58,11 @@ impl Ui {
         enum MainMenuItem {
             Tracks,
             Metronome,
-            Project,
             Quit,
         }
         let menu_items = [
             MainMenuItem::Tracks,
             MainMenuItem::Metronome,
-            MainMenuItem::Project,
             MainMenuItem::Quit,
         ];
         let mut menu = SelectorMenu::new(
@@ -73,7 +71,6 @@ impl Ui {
             |i: &MainMenuItem| match i {
                 MainMenuItem::Tracks => "Tracks".to_string(),
                 MainMenuItem::Metronome => "Metronome".to_string(),
-                MainMenuItem::Project => "Project".to_string(),
                 MainMenuItem::Quit => "Quit".to_string(),
             },
         );
@@ -81,7 +78,6 @@ impl Ui {
             match menu.run(&self.event_poll, &mut self.terminal)? {
                 Some(MainMenuItem::Tracks) => self.run_tracks()?,
                 Some(MainMenuItem::Metronome) => self.run_metronome()?,
-                Some(MainMenuItem::Project) => self.run_project()?,
                 Some(MainMenuItem::Quit) => return Ok(()),
                 None => (),
             }
@@ -189,33 +185,6 @@ impl Ui {
                 Item::Bpm => (),
                 Item::Volume => (),
                 Item::Recording => self.bats_state.toggle_recording(),
-                Item::Back => return Ok(()),
-            }
-        }
-        Ok(())
-    }
-
-    /// Run the project page.
-    fn run_project(&mut self) -> Result<()> {
-        #[derive(Copy, Clone)]
-        enum Item {
-            Save,
-            Load,
-            Back,
-        }
-        let mut menu = SelectorMenu::new(
-            "Project".to_string(),
-            [Item::Save, Item::Load, Item::Back],
-            |i: &Item| match i {
-                Item::Save => "Save".to_string(),
-                Item::Load => "Load".to_string(),
-                Item::Back => "Back".to_string(),
-            },
-        );
-        while let Some(item) = menu.run(&self.event_poll, &mut self.terminal)? {
-            match item {
-                Item::Save => unimplemented!(),
-                Item::Load => unimplemented!(),
                 Item::Back => return Ok(()),
             }
         }

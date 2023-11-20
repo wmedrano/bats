@@ -5,8 +5,6 @@ use bats_lib::{
 };
 use log::error;
 
-use crate::notification::Notification;
-
 /// Contains commands for bats.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Command {
@@ -38,15 +36,11 @@ pub enum Command {
     },
     /// Set if recording is enabled or disabled.
     SetRecord(bool),
-    /// Request a save. The state will be sent over a notification and must be restored.
-    RequestSave(Box<Bats>),
-    /// Restore the state.
-    RestoreState(Box<Bats>),
 }
 
 impl Command {
     /// The command to execute. It returns the command to undo the current command.
-    pub fn execute(self, b: &mut Bats, notify: impl Fn(Notification)) -> Command {
+    pub fn execute(self, b: &mut Bats) -> Command {
         match self {
             Command::None => Command::None,
             Command::SetMetronomeVolume(v) => {
@@ -132,16 +126,6 @@ impl Command {
                 b.recording_enabled = enabled;
                 undo
             }
-            Command::RequestSave(mut s) => {
-                std::mem::swap(b, &mut s);
-                notify(Notification::SaveResponse(s));
-                Command::None
-            }
-            Command::RestoreState(mut s) => {
-                std::mem::swap(b, &mut s);
-                notify(Notification::SaveLoaded { old: s });
-                Command::None
-            }
         }
     }
 }
@@ -153,8 +137,6 @@ mod tests {
     use bmidi::MidiMessage;
 
     use super::*;
-
-    fn no_notify(_: Notification) {}
 
     /// Get all the track name for non-empty tracks.
     fn get_track_names(b: &Bats) -> Vec<&'static str> {
@@ -173,7 +155,7 @@ mod tests {
     #[test]
     fn none_command_undo_is_none() {
         let mut b = Bats::new(SampleRate::new(44100.0), 64);
-        let undo = Command::None.execute(&mut b, no_notify);
+        let undo = Command::None.execute(&mut b);
         assert_eq!(undo, Command::None);
     }
 
@@ -182,7 +164,7 @@ mod tests {
         let mut b = Bats::new(SampleRate::new(44100.0), 64);
         b.transport.metronome_volume = 1.0;
 
-        let undo = Command::SetMetronomeVolume(0.5).execute(&mut b, no_notify);
+        let undo = Command::SetMetronomeVolume(0.5).execute(&mut b);
         assert_eq!(b.transport.metronome_volume, 0.5);
         assert_eq!(undo, Command::SetMetronomeVolume(1.0));
     }
@@ -192,7 +174,7 @@ mod tests {
         let mut b = Bats::new(SampleRate::new(44100.0), 64);
         b.transport.set_bpm(b.sample_rate, 100.0);
 
-        let undo = Command::SetTransportBpm(90.0).execute(&mut b, no_notify);
+        let undo = Command::SetTransportBpm(90.0).execute(&mut b);
         assert_eq!(b.transport.bpm(), 90.0);
         assert_eq!(undo, Command::SetTransportBpm(100.0));
     }
@@ -208,7 +190,7 @@ mod tests {
             track_id: 1,
             plugin: plugin.clone(),
         }
-        .execute(&mut b, no_notify);
+        .execute(&mut b);
         assert_eq!(get_track_names(&b), vec!["toof", "toof"]);
         assert_eq!(
             undo,
@@ -222,7 +204,7 @@ mod tests {
             track_id: 1,
             plugin: None,
         }
-        .execute(&mut b, no_notify);
+        .execute(&mut b);
         assert_eq!(get_track_names(&b), vec!["toof"]);
         assert_eq!(
             undo,
@@ -245,7 +227,7 @@ mod tests {
                 track_id: 1,
                 plugin: None
             }
-            .execute(&mut b, no_notify),
+            .execute(&mut b),
             Command::None
         );
         assert_eq!(get_track_names(&b), vec!["toof", "toof"]);
@@ -256,15 +238,15 @@ mod tests {
         let mut b = Bats::new(SampleRate::new(44100.0), 64);
         b.armed_track = 100;
 
-        let undo = Command::SetArmedTrack(10).execute(&mut b, no_notify);
+        let undo = Command::SetArmedTrack(10).execute(&mut b);
         assert_eq!(b.armed_track, 10);
         assert_eq!(undo, Command::SetArmedTrack(100));
 
-        let undo = Command::SetArmedTrack(20).execute(&mut b, no_notify);
+        let undo = Command::SetArmedTrack(20).execute(&mut b);
         assert_eq!(b.armed_track, 20);
         assert_eq!(undo, Command::SetArmedTrack(10));
 
-        let undo = Command::SetArmedTrack(100).execute(&mut b, no_notify);
+        let undo = Command::SetArmedTrack(100).execute(&mut b);
         assert_eq!(b.armed_track, 100);
         assert_eq!(undo, Command::SetArmedTrack(20));
     }
@@ -278,7 +260,7 @@ mod tests {
             track_id: 0,
             volume: 0.3,
         }
-        .execute(&mut b, no_notify);
+        .execute(&mut b);
         assert_eq!(
             undo,
             Command::SetTrackVolume {
@@ -297,7 +279,7 @@ mod tests {
             track_id: 1000, // Out of range.
             volume: 0.3,
         }
-        .execute(&mut b, no_notify);
+        .execute(&mut b);
         assert_eq!(undo, Command::None);
     }
 
@@ -315,7 +297,7 @@ mod tests {
                 midi: MidiMessage::Reset,
             }],
         }
-        .execute(&mut b, no_notify);
+        .execute(&mut b);
         assert_eq!(
             undo,
             Command::SetSequence {
@@ -341,22 +323,22 @@ mod tests {
         b.recording_enabled = true;
 
         // true -> true
-        let undo = Command::SetRecord(true).execute(&mut b, no_notify);
+        let undo = Command::SetRecord(true).execute(&mut b);
         assert_eq!(b.recording_enabled, true);
         assert_eq!(undo, Command::SetRecord(true));
 
         // true -> false
-        let undo = Command::SetRecord(false).execute(&mut b, no_notify);
+        let undo = Command::SetRecord(false).execute(&mut b);
         assert_eq!(b.recording_enabled, false);
         assert_eq!(undo, Command::SetRecord(true));
 
         // false -> false
-        let undo = Command::SetRecord(false).execute(&mut b, no_notify);
+        let undo = Command::SetRecord(false).execute(&mut b);
         assert_eq!(b.recording_enabled, false);
         assert_eq!(undo, Command::SetRecord(false));
 
         // false -> true
-        let undo = Command::SetRecord(true).execute(&mut b, no_notify);
+        let undo = Command::SetRecord(true).execute(&mut b);
         assert_eq!(b.recording_enabled, true);
         assert_eq!(undo, Command::SetRecord(false));
     }

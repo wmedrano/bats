@@ -80,8 +80,8 @@ impl std::ops::AddAssign for Position {
 
 impl std::fmt::Debug for Position {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let whole = self.beat() as f64;
-        let fract = self.sub_beat() as f64 / (1u64 << 32) as f64;
+        let whole = self.beat() as f32;
+        let fract = self.sub_beat() as f32 / (1u64 << 32) as f32;
         let beat = whole + fract;
         f.debug_struct("Position").field("beat", &beat).finish()
     }

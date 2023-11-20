@@ -1,5 +1,3 @@
-use bats_lib::Bats;
-
 use crate::command::Command;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -7,10 +5,6 @@ use crate::command::Command;
 pub enum Notification {
     /// Notify that a new undo command is available.
     Undo(Command),
-    /// Notify that save is ready.
-    SaveResponse(Box<Bats>),
-    /// Notify that a save has been loaded. The previous state is returned.
-    SaveLoaded { old: Box<Bats> },
 }
 
 #[cfg(test)]
