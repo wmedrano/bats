@@ -8,6 +8,6 @@ edition = "2021"
 [dependencies]
 bats-dsp = { path = "../bats-dsp" }
 bats-lib = { path = "../bats-lib" }
+bmidi = { path = "../bmidi" }
 crossbeam-channel = "0.5"
 log = "0.4"
-wmidi = "4.0"

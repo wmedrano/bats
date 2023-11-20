@@ -1,7 +1,9 @@
+use serde::{Deserialize, Serialize};
+
 use crate::sample_rate::SampleRate;
 
 /// A sawtooth wave.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Sawtooth {
     amplitude: f32,
     amplitude_per_sample: f32,

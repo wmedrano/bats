@@ -84,20 +84,11 @@ impl TrackDetails {
 impl BatsState {
     /// Create a new `BatsState`.
     pub fn new(bats: &Bats, commands: CommandSender) -> BatsState {
-        let bpm = bats.transport.bpm();
-        let tracks = core::array::from_fn(|idx| TrackDetails::new(idx, &bats.tracks[idx]));
         BatsState {
             commands,
             sample_rate: bats.sample_rate,
             buffer_size: bats.buffer_size,
-            state: InnerState {
-                armed_track: bats.armed_track,
-                recording_enabled: bats.recording_enabled,
-                bpm,
-                metronome_volume: bats.transport.metronome_volume,
-                tracks,
-            }
-            .into(),
+            state: InnerState::new(bats).into(),
         }
     }
 
@@ -297,6 +288,21 @@ impl BatsState {
         sequence.reserve(Track::SEQUENCE_CAPACITY);
         self.commands
             .send(Command::SetSequence { track_id, sequence });
+    }
+}
+
+impl InnerState {
+    /// Create a new `InnerState`.
+    pub fn new(bats: &Bats) -> InnerState {
+        let bpm = bats.transport.bpm();
+        let tracks = core::array::from_fn(|idx| TrackDetails::new(idx, &bats.tracks[idx]));
+        InnerState {
+            armed_track: bats.armed_track,
+            recording_enabled: bats.recording_enabled,
+            bpm,
+            metronome_volume: bats.transport.metronome_volume,
+            tracks,
+        }
     }
 }
 

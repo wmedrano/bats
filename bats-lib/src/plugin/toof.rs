@@ -5,7 +5,8 @@ use bats_dsp::{
     sample_rate::SampleRate,
     sawtooth::Sawtooth,
 };
-use wmidi::{MidiMessage, Note, U7};
+use bmidi::{MidiMessage, Note, U7};
+use serde::{Deserialize, Serialize};
 
 use super::{
     metadata::{Param, ParamType},
@@ -13,7 +14,7 @@ use super::{
 };
 
 /// A simple Sawtooth plugin.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Toof {
     /// If the filter is disabled.
     bypass_filter: bool,
@@ -37,7 +38,7 @@ pub struct Toof {
 
 /// A single voice for the Toof plugin. Each voice contains a single
 /// note.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 struct ToofVoice {
     /// The midi note for the voice.
     note: Note,
@@ -291,7 +292,7 @@ impl ToofVoice {
 #[cfg(test)]
 mod tests {
     use bats_dsp::buffers::Buffers;
-    use wmidi::{Channel, MidiMessage, Note, U7};
+    use bmidi::{Channel, MidiMessage, Note, U7};
 
     use crate::plugin::BatsInstrumentExt;
 

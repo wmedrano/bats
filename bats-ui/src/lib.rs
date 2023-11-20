@@ -8,7 +8,7 @@ use bats_lib::{
 };
 use bats_state::{BatsState, TrackDetails};
 use events::EventPoll;
-use log::info;
+use log::{info, warn};
 use menu::{Menu, MenuAction, SelectorMenu};
 use plugin_factory::PluginBuilder;
 use ratatui::{prelude::CrosstermBackend, style::Color, Terminal};
@@ -318,5 +318,14 @@ impl Ui {
         .with_color(Color::Blue);
         menu.run(event_poll, terminal)?;
         Ok(())
+    }
+}
+
+impl Drop for Ui {
+    fn drop(&mut self) {
+        match crossterm::terminal::disable_raw_mode() {
+            Ok(()) => (),
+            Err(err) => warn!("Failed to disable raw mode: {err}"),
+        }
     }
 }

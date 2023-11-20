@@ -1,5 +1,6 @@
 use bats_dsp::{buffers::Buffers, position::Position};
-use wmidi::MidiMessage;
+use bmidi::MidiMessage;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     plugin::{toof::Toof, BatsInstrument, MidiEvent},
@@ -7,7 +8,7 @@ use crate::{
 };
 
 /// An plugin with output buffers.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Track {
     /// The plugin.
     pub plugin: Option<Box<Toof>>,
@@ -27,9 +28,9 @@ pub struct TrackProcessContext<'a> {
     /// The transport for the buffer.
     pub transport: &'a Transport,
     /// The midi input.
-    pub midi_in: &'a [(u32, MidiMessage<'static>)],
+    pub midi_in: &'a [(u32, MidiMessage)],
     /// Temporary midi buffer to use for scratch operations.
-    pub tmp_midi_buffer: &'a mut Vec<(u32, MidiMessage<'static>)>,
+    pub tmp_midi_buffer: &'a mut Vec<(u32, MidiMessage)>,
 }
 
 impl Track {
@@ -66,11 +67,7 @@ impl Track {
         }
     }
 
-    fn sequence_to_midi_frames(
-        &self,
-        dst: &mut Vec<(u32, MidiMessage<'static>)>,
-        transport: &Transport,
-    ) {
+    fn sequence_to_midi_frames(&self, dst: &mut Vec<(u32, MidiMessage)>, transport: &Transport) {
         if self.sequence.is_empty() {
             return;
         }
@@ -104,7 +101,7 @@ impl Track {
             let mut has_looped = false;
             while let Some(event) = sequence_iter.next_if(is_in_range) {
                 if event != &placeholder_event {
-                    dst.push((frame as u32, event.midi.clone()));
+                    dst.push((frame as u32, event.midi));
                 } else if has_looped {
                     // Only allow wrapping over once per position range.
                     continue;
@@ -124,7 +121,7 @@ impl Track {
 
     fn record_to_sequence<'a>(
         &mut self,
-        midi_iter: impl 'a + Iterator<Item = &'a (u32, MidiMessage<'static>)>,
+        midi_iter: impl 'a + Iterator<Item = &'a (u32, MidiMessage)>,
         transport: &Transport,
     ) {
         let mut did_change = false;
@@ -132,7 +129,7 @@ impl Track {
             let position = transport.range_for_frame(*frame).start;
             self.sequence.push(MidiEvent {
                 position,
-                midi: midi.clone(),
+                midi: *midi,
             });
             did_change = true;
         }
@@ -145,12 +142,12 @@ impl Track {
 #[cfg(test)]
 mod tests {
     use bats_dsp::{position::Position, sample_rate::SampleRate};
-    use wmidi::{Channel, Note, U7};
+    use bmidi::{Channel, Note, U7};
 
     use super::*;
 
-    const NOTE_ON: MidiMessage<'static> = MidiMessage::NoteOn(Channel::Ch1, Note::C3, U7::MAX);
-    const NOTE_OFF: MidiMessage<'static> = MidiMessage::NoteOff(Channel::Ch1, Note::C3, U7::MIN);
+    const NOTE_ON: MidiMessage = MidiMessage::NoteOn(Channel::Ch1, Note::C3, U7::MAX);
+    const NOTE_OFF: MidiMessage = MidiMessage::NoteOff(Channel::Ch1, Note::C3, U7::MIN);
 
     #[test]
     fn empty_sequence_no_midi_produces_silence() {

@@ -1,10 +1,12 @@
+use serde::{Deserialize, Serialize};
+
 use crate::sample_rate::SampleRate;
 
 /// A classic Moog low pass filter.
 ///
 /// Credit: Implementation is derived from
 /// https://github.com/ddiakopoulos/MoogLadders/blob/master/src/MusicDSPModel.h.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MoogFilter {
     r: f32,
     stage: [f32; 4],

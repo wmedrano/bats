@@ -2,15 +2,15 @@ use std::time::Duration;
 
 use bats_dsp::{buffers::Buffers, sample_rate::SampleRate};
 use bats_lib::plugin::{toof::Toof, BatsInstrument, BatsInstrumentExt};
+use bmidi::{Channel, MidiMessage, Note, U7};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use wmidi::{Channel, MidiMessage, Note, U7};
 
 const BUFFER_SIZE: usize = 128;
 const SAMPLE_RATE: f32 = 44100.0;
-const PRESS_C4: MidiMessage<'static> = MidiMessage::NoteOn(Channel::Ch1, Note::C4, U7::MAX);
-const RELEASE_C4: MidiMessage<'static> = MidiMessage::NoteOff(Channel::Ch1, Note::C4, U7::MIN);
-const PRESS_A4: MidiMessage<'static> = MidiMessage::NoteOn(Channel::Ch1, Note::A4, U7::MAX);
-const RELEASE_A4: MidiMessage<'static> = MidiMessage::NoteOff(Channel::Ch1, Note::A4, U7::MIN);
+const PRESS_C4: MidiMessage = MidiMessage::NoteOn(Channel::Ch1, Note::C4, U7::MAX);
+const RELEASE_C4: MidiMessage = MidiMessage::NoteOff(Channel::Ch1, Note::C4, U7::MIN);
+const PRESS_A4: MidiMessage = MidiMessage::NoteOn(Channel::Ch1, Note::A4, U7::MAX);
+const RELEASE_A4: MidiMessage = MidiMessage::NoteOff(Channel::Ch1, Note::A4, U7::MIN);
 
 fn bats_init_benchmark(c: &mut Criterion) {
     // Does not need high precision. Just enough to deterimine if initialization is a snappy user

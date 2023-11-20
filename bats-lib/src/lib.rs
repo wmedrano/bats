@@ -1,14 +1,15 @@
 use bats_dsp::{buffers::Buffers, sample_rate::SampleRate};
+use bmidi::MidiMessage;
+use serde::{Deserialize, Serialize};
 use track::{Track, TrackProcessContext};
 use transport::Transport;
-use wmidi::MidiMessage;
 
 pub mod plugin;
 pub mod track;
 pub mod transport;
 
 /// Handles all processing.
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Bats {
     /// The transport.
     pub transport: Transport,
@@ -21,7 +22,7 @@ pub struct Bats {
     /// The buffer size.
     pub buffer_size: usize,
     /// Temporary buffer for midi data.
-    pub midi_buffer: Vec<(u32, MidiMessage<'static>)>,
+    pub midi_buffer: Vec<(u32, MidiMessage)>,
     /// The tracks.
     pub tracks: [Track; Bats::SUPPORTED_TRACKS],
 }
@@ -45,12 +46,7 @@ impl Bats {
     }
 
     /// Process midi data and output audio.
-    pub fn process(
-        &mut self,
-        midi: &[(u32, MidiMessage<'static>)],
-        left: &mut [f32],
-        right: &mut [f32],
-    ) {
+    pub fn process(&mut self, midi: &[(u32, MidiMessage)], left: &mut [f32], right: &mut [f32]) {
         self.transport.process(left, right);
         for (id, track) in self.tracks.iter_mut().enumerate() {
             let is_armed = id == self.armed_track;
@@ -73,7 +69,7 @@ impl Bats {
     pub fn process_to_buffer(
         &mut self,
         sample_count: usize,
-        midi: &[(u32, wmidi::MidiMessage<'static>)],
+        midi: &[(u32, MidiMessage)],
     ) -> Buffers {
         let mut buffers = Buffers::new(sample_count);
         self.process(midi, &mut buffers.left, &mut buffers.right);
@@ -91,7 +87,7 @@ fn mix(dst: &mut [f32], src: &[f32], volume: f32) {
 #[cfg(test)]
 mod tests {
 
-    use wmidi::{Channel, Note, U7};
+    use bmidi::{Channel, Note, U7};
 
     use crate::plugin::toof::Toof;
 
@@ -159,10 +155,7 @@ mod tests {
         b.armed_track = 100;
         let buffers = b.process_to_buffer(
             sample_count,
-            &[(
-                0,
-                wmidi::MidiMessage::NoteOn(Channel::Ch1, Note::C3, U7::MAX),
-            )],
+            &[(0, MidiMessage::NoteOn(Channel::Ch1, Note::C3, U7::MAX))],
         );
         assert!(buffers.is_zero());
     }
@@ -180,10 +173,7 @@ mod tests {
         b.armed_track = 0;
         let buffers = b.process_to_buffer(
             sample_count,
-            &[(
-                0,
-                wmidi::MidiMessage::NoteOn(Channel::Ch1, Note::C3, U7::MAX),
-            )],
+            &[(0, MidiMessage::NoteOn(Channel::Ch1, Note::C3, U7::MAX))],
         );
         assert!(!buffers.is_zero());
     }

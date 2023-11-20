@@ -1,5 +1,7 @@
+use serde::{Deserialize, Serialize};
+
 /// Contains the sample rate.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SampleRate {
     seconds_per_sample: f32,
 }

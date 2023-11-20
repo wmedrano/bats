@@ -1,7 +1,9 @@
+use serde::{Deserialize, Serialize};
+
 use crate::sample_rate::SampleRate;
 
 /// The parameters for an envelope.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct EnvelopeParams {
     /// The amount of amp to add in each attack phase sample.
     attack_delta: f32,
@@ -116,7 +118,7 @@ impl EnvelopeParams {
 }
 
 /// Handles envelope logic.
-#[derive(Copy, Clone, Debug, PartialEq, Default)]
+#[derive(Copy, Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct Envelope {
     /// The current stage in the envelope.
     stage: Stage,
@@ -125,7 +127,7 @@ pub struct Envelope {
 }
 
 /// The stage of the envelope.
-#[derive(Copy, Clone, Debug, PartialEq, Default)]
+#[derive(Copy, Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 enum Stage {
     /// The attack phase.
     #[default]

@@ -14,7 +14,7 @@ pub struct ProcessHandler {
     /// Command queue for the bats processing object.
     commands: CommandReceiver,
     /// An intermediate midi buffer.
-    midi_buffer: Vec<(u32, wmidi::MidiMessage<'static>)>,
+    midi_buffer: Vec<(u32, bmidi::MidiMessage)>,
 }
 
 impl ProcessHandler {
@@ -89,10 +89,8 @@ impl jack::ProcessHandler for ProcessHandler {
     fn process(&mut self, _: &jack::Client, ps: &jack::ProcessScope) -> jack::Control {
         self.midi_buffer.clear();
         for m in self.ports.midi.iter(ps) {
-            if let Ok(msg) = wmidi::MidiMessage::from_bytes(m.bytes) {
-                if let Some(msg) = msg.drop_unowned_sysex() {
-                    self.midi_buffer.push((m.time, msg));
-                }
+            if let Ok(msg) = bmidi::MidiMessage::from_bytes(m.bytes) {
+                self.midi_buffer.push((m.time, msg));
             }
         }
         self.commands.execute_all(&mut self.bats);

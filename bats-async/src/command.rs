@@ -134,7 +134,7 @@ impl Command {
 mod tests {
     use bats_dsp::{position::Position, sample_rate::SampleRate};
     use bats_lib::plugin::toof::Toof;
-    use wmidi::MidiMessage;
+    use bmidi::MidiMessage;
 
     use super::*;
 
@@ -144,6 +144,12 @@ mod tests {
             .iter()
             .flat_map(|t| t.plugin.as_ref().map(|p| p.metadata().name))
             .collect()
+    }
+
+    #[test]
+    fn command_size_is_reasonable() {
+        let size = std::mem::size_of::<Command>();
+        assert_eq!(size, 40);
     }
 
     #[test]
