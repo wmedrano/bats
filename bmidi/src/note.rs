@@ -500,7 +500,6 @@ mod test {
         assert_eq!(Note::B3.step(-100), Err(Error::NoteOutOfRange));
     }
 
-    #[cfg(feature = "std")]
     #[test]
     fn test_debug() {
         let debug_str = format!("{:?}", Note::Bb3);

@@ -252,16 +252,6 @@ impl<'a> MidiMessage {
             _ => None,
         }
     }
-
-    /// Convert the message to a vector of bytes. Prefer using
-    /// `copy_to_slice` if possible for better performance.
-    #[cfg(feature = "std")]
-    pub fn to_vec(&self) -> Vec<u8> {
-        let mut data = vec![0; self.bytes_size()];
-        // Unwrapping is ok as data has enough capacity for the data.
-        self.copy_to_slice(&mut data).unwrap();
-        data
-    }
 }
 
 impl io::Read for MidiMessage {
