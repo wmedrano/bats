@@ -11,8 +11,8 @@ bats-async = { path = "../bats-async" }
 bats-dsp = { path = "../bats-dsp" }
 bats-lib = { path = "../bats-lib" }
 bats-ui = { path = "../bats-ui" }
+bmidi = { path = "../bmidi" }
 clap = { version = "4.4", features = ["derive"] }
 env_logger = "0.10"
 jack = "0.11"
 log = "0.4"
-wmidi = "4.0"

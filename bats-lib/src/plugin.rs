@@ -1,6 +1,7 @@
 use anyhow::anyhow;
 use bats_dsp::{buffers::Buffers, position::Position};
-use wmidi::MidiMessage;
+use bmidi::MidiMessage;
+use serde::{Deserialize, Serialize};
 
 use self::metadata::Metadata;
 
@@ -8,12 +9,12 @@ pub mod metadata;
 pub mod toof;
 
 /// Contains a midi event along with its `Position` timestamp.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MidiEvent {
     /// The position of the midi event.
     pub position: Position,
     /// The midi event.
-    pub midi: MidiMessage<'static>,
+    pub midi: MidiMessage,
 }
 
 /// Defines a generic instrument plugin.
@@ -43,7 +44,7 @@ pub trait BatsInstrument {
     /// improvements.
     fn process_batch<'a>(
         &mut self,
-        midi_in: impl 'a + Iterator<Item = (u32, &'a MidiMessage<'static>)>,
+        midi_in: impl 'a + Iterator<Item = (u32, &'a MidiMessage)>,
         output: &mut Buffers,
     ) {
         let sample_count = output.len();
@@ -65,7 +66,7 @@ pub trait BatsInstrumentExt: BatsInstrument {
     fn process_to_buffers(
         &mut self,
         sample_count: usize,
-        midi_in: &[(u32, MidiMessage<'static>)],
+        midi_in: &[(u32, MidiMessage)],
     ) -> Buffers {
         let mut buffers = Buffers::new(sample_count);
         self.process_batch(midi_in.iter().map(|(a, b)| (*a, b)), &mut buffers);

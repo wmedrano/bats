@@ -11,9 +11,10 @@ harness = false
 
 [dependencies]
 anyhow = "1.0"
-arrayvec = "0.7"
+arrayvec = { version = "0.7", features = ["serde"] }
 bats-dsp = { path = "../bats-dsp" }
-wmidi = "4.0"
+bmidi = { path = "../bmidi" }
+serde = { version = "1.0", features = ["derive"]}
 
 [dev-dependencies]
 criterion = { version = "0.4", features = ["html_reports"], default_features = false }

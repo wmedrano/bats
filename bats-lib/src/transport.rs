@@ -1,12 +1,13 @@
 use std::ops::Range;
 
 use bats_dsp::{position::Position, sample_rate::SampleRate, sawtooth::Sawtooth};
-use wmidi::{Channel, MidiMessage, Note, U7};
+use bmidi::{Channel, MidiMessage, Note, U7};
+use serde::{Deserialize, Serialize};
 
 use crate::plugin::BatsInstrument;
 
 /// Tracks position according to the specified BPM.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Transport {
     /// The volume of the metronome.
     pub metronome_volume: f32,
@@ -138,7 +139,7 @@ impl Transport {
 }
 
 /// A simple synthesize for the metronome.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 struct MetronomeSynth {
     /// The sample rate.
     sample_rate: SampleRate,

@@ -150,7 +150,7 @@ impl Command {
 mod tests {
     use bats_dsp::{position::Position, sample_rate::SampleRate};
     use bats_lib::plugin::toof::Toof;
-    use wmidi::MidiMessage;
+    use bmidi::MidiMessage;
 
     use super::*;
 

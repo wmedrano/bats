@@ -108,6 +108,13 @@ impl BatsState {
                 Notification::Undo(_) => {
                     // TODO: Implement undo functionality.
                 }
+                Notification::SaveResponse(_b) => {
+                    unimplemented!()
+                }
+                Notification::SaveLoaded { old } => {
+                    // Run drop in the UI thread instead of the high priority audio threads.
+                    drop(old);
+                }
             }
         }
     }
