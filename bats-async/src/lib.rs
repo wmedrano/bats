@@ -56,8 +56,11 @@ impl CommandSender {
 impl CommandReceiver {
     /// Execute all queued up commands and return an iterator of the undo commands.
     pub fn execute_all<'a>(&'a self, b: &'a mut Bats) {
+        let send_notification = |n| {
+            self.notifications.send(n).unwrap();
+        };
         for cmd in self.receiver.try_iter() {
-            let undo = cmd.execute(b);
+            let undo = cmd.execute(b, send_notification);
             if let Err(err) = self.notifications.try_send(Notification::Undo(undo)) {
                 error!("Failed to send undo notifcation: {err}");
             };

@@ -8,7 +8,7 @@ pub mod track;
 pub mod transport;
 
 /// Handles all processing.
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Bats {
     /// The transport.
     pub transport: Transport,

@@ -6,7 +6,7 @@ use wmidi::{Channel, MidiMessage, Note, U7};
 use crate::plugin::BatsInstrument;
 
 /// Tracks position according to the specified BPM.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Transport {
     /// The volume of the metronome.
     pub metronome_volume: f32,
@@ -138,7 +138,7 @@ impl Transport {
 }
 
 /// A simple synthesize for the metronome.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 struct MetronomeSynth {
     /// The sample rate.
     sample_rate: SampleRate,
