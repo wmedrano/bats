@@ -5,6 +5,7 @@ use track::{Track, TrackProcessContext};
 use transport::Transport;
 
 pub mod plugin;
+pub mod plugin_factory;
 pub mod track;
 pub mod transport;
 
@@ -89,7 +90,7 @@ mod tests {
 
     use bmidi::{Channel, Note, U7};
 
-    use crate::plugin::toof::Toof;
+    use crate::{plugin::toof::Toof, plugin_factory::AnyPlugin};
 
     use super::*;
 
@@ -147,7 +148,7 @@ mod tests {
         let sample_count = 3;
         let mut b = Bats::new(SampleRate::new(44100.0), sample_count);
         b.tracks[0] = Track {
-            plugin: Some(Toof::new(SampleRate::new(44100.0))),
+            plugin: AnyPlugin::Toof(Toof::new(SampleRate::new(44100.0))),
             volume: 1.0,
             output: Buffers::new(sample_count),
             sequence: Vec::new(),

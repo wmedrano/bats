@@ -3,7 +3,8 @@ use std::{cell::RefCell, collections::HashMap};
 use bats_async::{command::Command, notification::Notification, CommandSender};
 use bats_dsp::sample_rate::SampleRate;
 use bats_lib::{
-    plugin::{metadata::Metadata, toof::Toof, BatsInstrument, MidiEvent},
+    plugin::{metadata::Metadata, MidiEvent},
+    plugin_factory::AnyPlugin,
     track::Track,
     Bats,
 };
@@ -61,7 +62,7 @@ impl Default for TrackDetails {
 impl TrackDetails {
     /// Create a new `PluginDetails` from a `PluginInstance`.
     fn new(id: usize, t: &Track) -> TrackDetails {
-        let plugin_metadata = plugin_metadata(&t.plugin);
+        let plugin_metadata = t.plugin.plugin().metadata();
         let params = param_values(&t.plugin);
         TrackDetails {
             id,
@@ -116,18 +117,18 @@ impl BatsState {
     }
 
     /// Set the plugin for the track.
-    pub fn set_plugin(&self, track_id: usize, plugin: Option<Box<Toof>>) {
+    pub fn set_plugin(&self, track_id: usize, plugin: AnyPlugin) {
         self.handle_notifications();
         info!(
             "Setting track {track_id} plugin to {plugin_name}.",
-            plugin_name = plugin.as_ref().map(|p| p.metadata().name).unwrap_or("")
+            plugin_name = plugin.plugin().metadata().name
         );
         match self.state.borrow_mut().tracks.get_mut(track_id) {
             None => {
                 error!("Could not find track with id {track_id}.");
             }
             Some(track) => {
-                track.plugin_metadata = plugin_metadata(&plugin);
+                track.plugin_metadata = plugin.plugin().metadata();
                 track.params = param_values(&plugin);
                 self.commands.send(Command::SetPlugin { track_id, plugin });
             }
@@ -307,24 +308,14 @@ impl InnerState {
 }
 
 /// Get the map from `param_id` to the parameter value.
-fn param_values(p: &Option<Box<Toof>>) -> HashMap<u32, f32> {
-    plugin_metadata(p)
+fn param_values(p: &AnyPlugin) -> HashMap<u32, f32> {
+    let p = p.plugin();
+    p.metadata()
         .params
         .iter()
         .map(|param| {
-            let value = p
-                .as_ref()
-                .map(|plugin| plugin.param(param.id))
-                .unwrap_or(param.default_value);
+            let value = p.param(param.id);
             (param.id, value)
         })
         .collect()
-}
-
-/// Get the metadata for the given plugin.
-fn plugin_metadata(p: &Option<Box<Toof>>) -> &'static Metadata {
-    p.as_ref().map(|p| p.metadata()).unwrap_or(&Metadata {
-        name: "empty",
-        params: &[],
-    })
 }

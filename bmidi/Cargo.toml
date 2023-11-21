@@ -10,5 +10,5 @@ harness = false
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 
-[dev-dependencies.criterion]
-criterion = { version = "0.4", features = ["html_reports"], default_features = false }
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"], default_features = false }

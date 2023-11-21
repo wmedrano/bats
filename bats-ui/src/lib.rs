@@ -4,19 +4,18 @@ use anyhow::Result;
 use bats_async::CommandSender;
 use bats_lib::{
     plugin::metadata::{Param, ParamType},
+    plugin_factory::PluginBuilder,
     Bats,
 };
 use bats_state::{BatsState, TrackDetails};
 use events::EventPoll;
 use log::{info, warn};
 use menu::{Menu, MenuAction, SelectorMenu};
-use plugin_factory::PluginBuilder;
 use ratatui::{prelude::CrosstermBackend, style::Color, Terminal};
 
 pub mod bats_state;
 pub mod events;
 pub mod menu;
-pub mod plugin_factory;
 pub mod selector;
 
 /// Runs the Ui.
@@ -323,6 +322,16 @@ impl Ui {
 
 impl Drop for Ui {
     fn drop(&mut self) {
+        match crossterm::execute!(
+            std::io::stdout(),
+            crossterm::terminal::LeaveAlternateScreen,
+            crossterm::event::DisableMouseCapture
+        ) {
+            Ok(()) => (),
+            Err(err) => {
+                warn!("Failed to leave terminal screen and disable terminal mouse capture: {err}")
+            }
+        }
         match crossterm::terminal::disable_raw_mode() {
             Ok(()) => (),
             Err(err) => warn!("Failed to disable raw mode: {err}"),

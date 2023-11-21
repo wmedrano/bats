@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use self::metadata::Metadata;
 
+pub mod empty;
 pub mod metadata;
 pub mod toof;
 
@@ -42,13 +43,9 @@ pub trait BatsInstrument {
     ///
     /// Prefer using this default behavior unless benchmarking shows significant performance
     /// improvements.
-    fn process_batch<'a>(
-        &mut self,
-        midi_in: impl 'a + Iterator<Item = (u32, &'a MidiMessage)>,
-        output: &mut Buffers,
-    ) {
+    fn process_batch(&mut self, midi_in: &[(u32, MidiMessage)], output: &mut Buffers) {
         let sample_count = output.len();
-        let mut midi_iter = midi_in.peekable();
+        let mut midi_iter = midi_in.iter().peekable();
         for i in 0..sample_count {
             while let Some((_, msg)) = midi_iter.next_if(|(frame, _)| *frame <= i as u32) {
                 self.handle_midi(msg);
@@ -69,7 +66,7 @@ pub trait BatsInstrumentExt: BatsInstrument {
         midi_in: &[(u32, MidiMessage)],
     ) -> Buffers {
         let mut buffers = Buffers::new(sample_count);
-        self.process_batch(midi_in.iter().map(|(a, b)| (*a, b)), &mut buffers);
+        self.process_batch(midi_in, &mut buffers);
         buffers
     }
 

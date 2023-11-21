@@ -69,14 +69,18 @@ impl CommandReceiver {
 mod tests {
     use super::*;
     use bats_dsp::sample_rate::SampleRate;
-    use bats_lib::{plugin::toof::Toof, Bats};
+    use bats_lib::{
+        plugin::{empty::Empty, toof::Toof},
+        plugin_factory::AnyPlugin,
+        Bats,
+    };
 
     #[test]
     fn send_commands_get_executed() {
         let (sender, receiver) = new_async_commander();
         let mut bats = Bats::new(SampleRate::new(44100.0), 64);
-        let plugin = Some(Toof::new(bats.sample_rate));
-        assert_eq!(bats.tracks[0].plugin, None);
+        let plugin = AnyPlugin::Toof(Toof::new(bats.sample_rate));
+        assert_eq!(bats.tracks[0].plugin, AnyPlugin::Empty(Empty));
         assert_eq!(sender.notifications(), vec![]);
         sender.send(Command::None);
         sender.send(Command::SetPlugin {
@@ -91,7 +95,7 @@ mod tests {
                 Notification::Undo(Command::None),
                 Notification::Undo(Command::SetPlugin {
                     track_id: 0,
-                    plugin: None
+                    plugin: AnyPlugin::Empty(Empty),
                 })
             ]
         );

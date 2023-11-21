@@ -1,8 +1,4 @@
-use bats_lib::{
-    plugin::toof::Toof,
-    plugin::{BatsInstrument, MidiEvent},
-    Bats,
-};
+use bats_lib::{plugin::MidiEvent, plugin_factory::AnyPlugin, Bats};
 use log::error;
 
 /// Contains commands for bats.
@@ -15,10 +11,7 @@ pub enum Command {
     /// Set the BPM of the transport.
     SetTransportBpm(f32),
     /// Add a new track.
-    SetPlugin {
-        track_id: usize,
-        plugin: Option<Box<Toof>>,
-    },
+    SetPlugin { track_id: usize, plugin: AnyPlugin },
     /// Set the armed track.
     SetArmedTrack(usize),
     /// Set the track volume.
@@ -56,15 +49,12 @@ impl Command {
             Command::SetPlugin { track_id, plugin } => match b.tracks.get_mut(track_id) {
                 None => Command::None,
                 Some(t) => {
-                    if plugin.is_none() && t.plugin.is_none() {
-                        return Command::None;
-                    }
-                    let undo = Command::SetPlugin {
+                    let mut old_plugin = plugin;
+                    std::mem::swap(&mut t.plugin, &mut old_plugin);
+                    Command::SetPlugin {
                         track_id,
-                        plugin: t.plugin.take(),
-                    };
-                    t.plugin = plugin;
-                    undo
+                        plugin: old_plugin,
+                    }
                 }
             },
             Command::SetTrackVolume { track_id, volume } => match b.tracks.get_mut(track_id) {
@@ -88,18 +78,16 @@ impl Command {
                 param_id,
                 value,
             } => match b.tracks.get_mut(track_id) {
-                Some(t) => match t.plugin.as_mut() {
-                    None => Command::None,
-                    Some(p) => {
-                        let undo = Command::SetParam {
-                            track_id,
-                            param_id,
-                            value: p.param(param_id),
-                        };
-                        p.set_param(param_id, value);
-                        undo
-                    }
-                },
+                Some(t) => {
+                    let p = t.plugin.plugin_mut();
+                    let undo = Command::SetParam {
+                        track_id,
+                        param_id,
+                        value: p.param(param_id),
+                    };
+                    p.set_param(param_id, value);
+                    undo
+                }
                 None => {
                     error!(
                         "track {} does not exist, will not set param {} to {}.",
@@ -133,7 +121,7 @@ impl Command {
 #[cfg(test)]
 mod tests {
     use bats_dsp::{position::Position, sample_rate::SampleRate};
-    use bats_lib::plugin::toof::Toof;
+    use bats_lib::plugin::{empty::Empty, toof::Toof};
     use bmidi::MidiMessage;
 
     use super::*;
@@ -142,7 +130,7 @@ mod tests {
     fn get_track_names(b: &Bats) -> Vec<&'static str> {
         b.tracks
             .iter()
-            .flat_map(|t| t.plugin.as_ref().map(|p| p.metadata().name))
+            .map(|t| t.plugin.plugin().metadata().name)
             .collect()
     }
 
@@ -182,30 +170,39 @@ mod tests {
     #[test]
     fn set_plugin() {
         let mut b = Bats::new(SampleRate::new(44100.0), 64);
-        let plugin = Some(Toof::new(b.sample_rate));
+        let plugin = AnyPlugin::Toof(Toof::new(b.sample_rate));
         b.tracks[0].plugin = plugin.clone();
-        assert_eq!(get_track_names(&b), vec!["toof"]);
+        assert_eq!(
+            get_track_names(&b),
+            vec!["toof", "empty", "empty", "empty", "empty", "empty", "empty", "empty"]
+        );
 
         let undo = Command::SetPlugin {
             track_id: 1,
             plugin: plugin.clone(),
         }
         .execute(&mut b);
-        assert_eq!(get_track_names(&b), vec!["toof", "toof"]);
+        assert_eq!(
+            get_track_names(&b),
+            vec!["toof", "toof", "empty", "empty", "empty", "empty", "empty", "empty"]
+        );
         assert_eq!(
             undo,
             Command::SetPlugin {
                 track_id: 1,
-                plugin: None
+                plugin: AnyPlugin::Empty(Empty)
             }
         );
 
         let undo = Command::SetPlugin {
             track_id: 1,
-            plugin: None,
+            plugin: AnyPlugin::Empty(Empty),
         }
         .execute(&mut b);
-        assert_eq!(get_track_names(&b), vec!["toof"]);
+        assert_eq!(
+            get_track_names(&b),
+            vec!["toof", "empty", "empty", "empty", "empty", "empty", "empty", "empty"]
+        );
         assert_eq!(
             undo,
             Command::SetPlugin {
@@ -218,19 +215,28 @@ mod tests {
     #[test]
     fn remove_plugin_that_does_not_exist_does_nothing() {
         let mut b = Bats::new(SampleRate::new(44100.0), 64);
-        let plugin = Some(Toof::new(b.sample_rate));
+        let plugin = AnyPlugin::Toof(Toof::new(b.sample_rate));
         b.tracks[0].plugin = plugin.clone();
         b.tracks[2].plugin = plugin.clone();
-        assert_eq!(get_track_names(&b), vec!["toof", "toof"]);
+        assert_eq!(
+            get_track_names(&b),
+            vec!["toof", "empty", "toof", "empty", "empty", "empty", "empty", "empty"]
+        );
         assert_eq!(
             Command::SetPlugin {
                 track_id: 1,
-                plugin: None
+                plugin: AnyPlugin::Empty(Empty),
             }
             .execute(&mut b),
-            Command::None
+            Command::SetPlugin {
+                track_id: 1,
+                plugin: AnyPlugin::default()
+            }
         );
-        assert_eq!(get_track_names(&b), vec!["toof", "toof"]);
+        assert_eq!(
+            get_track_names(&b),
+            vec!["toof", "empty", "toof", "empty", "empty", "empty", "empty", "empty"]
+        );
     }
 
     #[test]
