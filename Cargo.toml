@@ -9,5 +9,6 @@ members = [
 	"bats-async",
 	"bats-dsp",
 	"bats-lib",
-	"bats-ui"
+	"bats-ui",
+	"bmidi",
 ]
