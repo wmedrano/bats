@@ -6,7 +6,7 @@ use bats_dsp::{
     sawtooth::Sawtooth,
 };
 use bmidi::{MidiMessage, Note, U7};
-use serde::{Deserialize, Serialize};
+
 
 use super::{
     metadata::{Param, ParamType},
@@ -14,7 +14,7 @@ use super::{
 };
 
 /// A simple Sawtooth plugin.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Toof {
     /// If the filter is disabled.
     bypass_filter: bool,
@@ -38,7 +38,7 @@ pub struct Toof {
 
 /// A single voice for the Toof plugin. Each voice contains a single
 /// note.
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 struct ToofVoice {
     /// The midi note for the voice.
     note: Note,

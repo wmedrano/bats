@@ -1,7 +1,7 @@
 use anyhow::Result;
 use bats_async::new_async_commander;
 use bats_dsp::sample_rate::SampleRate;
-use bats_lib::Bats;
+use bats_lib::{builder::BatsBuilder, Bats};
 use clap::Parser;
 use log::{error, info};
 
@@ -40,8 +40,13 @@ fn main() -> Result<()> {
 }
 
 fn make_bats(client: &jack::Client) -> Bats {
-    let sample_rate = SampleRate::new(client.sample_rate() as f32);
-    Bats::new(sample_rate, client.buffer_size() as usize)
+    BatsBuilder {
+        sample_rate: SampleRate::new(client.sample_rate() as f32),
+        buffer_size: client.buffer_size() as usize,
+        bpm: 120.0,
+        tracks: Default::default(),
+    }
+    .build()
 }
 
 fn maybe_make_connector(

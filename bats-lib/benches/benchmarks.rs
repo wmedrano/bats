@@ -1,7 +1,10 @@
 use std::time::Duration;
 
 use bats_dsp::{buffers::Buffers, sample_rate::SampleRate};
-use bats_lib::plugin::{toof::Toof, BatsInstrument, BatsInstrumentExt};
+use bats_lib::{
+    builder::BatsBuilder,
+    plugin::{toof::Toof, BatsInstrument, BatsInstrumentExt},
+};
 use bmidi::{Channel, MidiMessage, Note, U7};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
@@ -20,7 +23,15 @@ fn bats_init_benchmark(c: &mut Criterion) {
         .measurement_time(Duration::from_secs(1))
         .confidence_level(0.99)
         .bench_function("bats", |b| {
-            b.iter(|| bats_lib::Bats::new(SampleRate::new(SAMPLE_RATE), BUFFER_SIZE))
+            b.iter(|| {
+                BatsBuilder {
+                    sample_rate: SampleRate::new(SAMPLE_RATE),
+                    buffer_size: BUFFER_SIZE,
+                    bpm: 120.0,
+                    tracks: Default::default(),
+                }
+                .build()
+            })
         });
 }
 
@@ -29,7 +40,13 @@ fn bats_benchmark(c: &mut Criterion) {
         .measurement_time(Duration::from_secs(10))
         .confidence_level(0.99)
         .bench_function("empty", |b| {
-            let mut bats = bats_lib::Bats::new(SampleRate::new(SAMPLE_RATE), BUFFER_SIZE);
+            let mut bats = BatsBuilder {
+                sample_rate: SampleRate::new(SAMPLE_RATE),
+                buffer_size: BUFFER_SIZE,
+                bpm: 120.0,
+                tracks: Default::default(),
+            }
+            .build();
             let mut buffers = black_box(Buffers::new(BUFFER_SIZE));
             let midi = black_box(&[]);
             b.iter(move || {
@@ -37,10 +54,15 @@ fn bats_benchmark(c: &mut Criterion) {
             })
         })
         .bench_function("bats_with_8_toofs", |b| {
-            let mut bats = black_box(bats_lib::Bats::new(
-                SampleRate::new(SAMPLE_RATE),
-                BUFFER_SIZE,
-            ));
+            let mut bats = black_box(
+                BatsBuilder {
+                    sample_rate: SampleRate::new(SAMPLE_RATE),
+                    buffer_size: BUFFER_SIZE,
+                    bpm: 120.0,
+                    tracks: Default::default(),
+                }
+                .build(),
+            );
             for track in bats.tracks.iter_mut().take(8) {
                 track.plugin = Toof::new(bats.sample_rate).into();
             }
@@ -88,7 +110,7 @@ fn toof_benchmark(c: &mut Criterion) {
             ]);
             let midi_ref = black_box(&midi);
             b.iter(move || {
-                toof.process_batch(midi_ref.iter().map(|(a, b)| (*a, b)), &mut buffers);
+                toof.process_batch(midi_ref, &mut buffers);
             })
         })
         .bench_function("process-no-filter", |b| {
@@ -103,7 +125,7 @@ fn toof_benchmark(c: &mut Criterion) {
             ]);
             let midi_ref = black_box(&midi);
             b.iter(move || {
-                toof.process_batch(midi_ref.iter().map(|(a, b)| (*a, b)), &mut buffers);
+                toof.process_batch(midi_ref, &mut buffers);
             })
         });
 }

@@ -1,17 +1,14 @@
 use bats_dsp::{buffers::Buffers, position::Position};
 use bmidi::MidiMessage;
-use serde::{Deserialize, Serialize};
 
-use crate::{
-    plugin::{toof::Toof, BatsInstrument, MidiEvent},
-    transport::Transport,
-};
+
+use crate::{builder::AnyPlugin, plugin::MidiEvent, transport::Transport};
 
 /// An plugin with output buffers.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Track {
     /// The plugin.
-    pub plugin: Option<Box<Toof>>,
+    pub plugin: AnyPlugin,
     /// The track volume.
     pub volume: f32,
     /// The buffers to output data to.
@@ -40,7 +37,7 @@ impl Track {
     /// Create a new track.
     pub fn new(buffer_size: usize) -> Track {
         Track {
-            plugin: None,
+            plugin: AnyPlugin::default(),
             volume: 1.0,
             output: Buffers::new(buffer_size),
             sequence: Vec::with_capacity(Track::SEQUENCE_CAPACITY),
@@ -61,10 +58,9 @@ impl Track {
                 self.record_to_sequence(ctx.midi_in.iter(), ctx.transport);
             }
         }
-        if let Some(p) = self.plugin.as_mut() {
-            let midi_in = ctx.tmp_midi_buffer.iter().map(|(a, b)| (*a, b));
-            p.process_batch(midi_in, &mut self.output);
-        }
+        self.plugin
+            .plugin_mut()
+            .process_batch(ctx.tmp_midi_buffer.as_slice(), &mut self.output);
     }
 
     fn sequence_to_midi_frames(&self, dst: &mut Vec<(u32, MidiMessage)>, transport: &Transport) {
@@ -144,6 +140,8 @@ mod tests {
     use bats_dsp::{position::Position, sample_rate::SampleRate};
     use bmidi::{Channel, Note, U7};
 
+    use crate::plugin::toof::Toof;
+
     use super::*;
 
     const NOTE_ON: MidiMessage = MidiMessage::NoteOn(Channel::Ch1, Note::C3, U7::MAX);
@@ -154,7 +152,7 @@ mod tests {
         let sample_rate = SampleRate::new(44100.0);
         let buffer_size = 256;
         let mut track = Track {
-            plugin: Some(Toof::new(sample_rate)),
+            plugin: AnyPlugin::Toof(Toof::new(sample_rate)),
             volume: 1.0,
             output: Buffers::new(buffer_size),
             sequence: Vec::new(),
@@ -176,7 +174,7 @@ mod tests {
         let sample_rate = SampleRate::new(44100.0);
         let buffer_size = 256;
         let mut track = Track {
-            plugin: Some(Toof::new(sample_rate)),
+            plugin: AnyPlugin::Toof(Toof::new(sample_rate)),
             volume: 1.0,
             output: Buffers::new(buffer_size),
             sequence: vec![MidiEvent {
@@ -201,7 +199,7 @@ mod tests {
         let sample_rate = SampleRate::new(44100.0);
         let buffer_size = 256;
         let mut track = Track {
-            plugin: Some(Toof::new(sample_rate)),
+            plugin: AnyPlugin::Toof(Toof::new(sample_rate)),
             volume: 1.0,
             output: Buffers::new(buffer_size),
             sequence: vec![MidiEvent {
@@ -226,7 +224,7 @@ mod tests {
         let sample_rate = SampleRate::new(44100.0);
         let buffer_size = 256;
         let mut track = Track {
-            plugin: Some(Toof::new(sample_rate)),
+            plugin: AnyPlugin::Toof(Toof::new(sample_rate)),
             volume: 1.0,
             output: Buffers::new(buffer_size),
             sequence: Vec::new(),
@@ -260,7 +258,7 @@ mod tests {
             },
         ];
         let mut track = Track {
-            plugin: Some(Toof::new(sample_rate)),
+            plugin: AnyPlugin::Toof(Toof::new(sample_rate)),
             volume: 1.0,
             output: Buffers::new(buffer_size),
             sequence,
@@ -283,7 +281,7 @@ mod tests {
         let sample_rate = SampleRate::new(44100.0);
         let buffer_size = 256;
         let mut track = Track {
-            plugin: Some(Toof::new(sample_rate)),
+            plugin: AnyPlugin::Toof(Toof::new(sample_rate)),
             volume: 1.0,
             output: Buffers::new(buffer_size),
             sequence: Vec::new(),
@@ -305,7 +303,7 @@ mod tests {
         let sample_rate = SampleRate::new(44100.0);
         let buffer_size = 256;
         let mut track = Track {
-            plugin: Some(Toof::new(sample_rate)),
+            plugin: AnyPlugin::Toof(Toof::new(sample_rate)),
             volume: 1.0,
             output: Buffers::new(buffer_size),
             sequence: Vec::new(),

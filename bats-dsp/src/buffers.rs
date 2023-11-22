@@ -1,12 +1,12 @@
 use std::{fmt, path::Path};
 
 use anyhow::{anyhow, Result};
-use serde::{Deserialize, Serialize};
+
 
 use crate::sample_rate::SampleRate;
 
 /// Buffers contains a left and right audio channel.
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq)]
 pub struct Buffers {
     /// The left audio channel.
     pub left: Vec<f32>,
