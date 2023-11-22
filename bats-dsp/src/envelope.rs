@@ -118,7 +118,7 @@ impl EnvelopeParams {
 }
 
 /// Handles envelope logic.
-#[derive(Copy, Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Default)]
 pub struct Envelope {
     /// The current stage in the envelope.
     stage: Stage,

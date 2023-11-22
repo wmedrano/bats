@@ -39,7 +39,7 @@ pub enum PluginBuilder {
 }
 
 /// Contains all the plugins.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum AnyPlugin {
     /// The empty plugin.
     Empty(Empty),

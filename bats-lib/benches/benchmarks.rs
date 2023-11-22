@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use bats_dsp::{buffers::Buffers, sample_rate::SampleRate};
 use bats_lib::{
+    builder::BatsBuilder,
     plugin::{toof::Toof, BatsInstrument, BatsInstrumentExt},
-    BatsBuilder,
 };
 use bmidi::{Channel, MidiMessage, Note, U7};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};

@@ -1,11 +1,11 @@
 use bats_dsp::{buffers::Buffers, position::Position};
 use bmidi::MidiMessage;
-use serde::{Deserialize, Serialize};
+
 
 use crate::{builder::AnyPlugin, plugin::MidiEvent, transport::Transport};
 
 /// An plugin with output buffers.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Track {
     /// The plugin.
     pub plugin: AnyPlugin,

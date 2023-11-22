@@ -1,6 +1,6 @@
 use bats_dsp::{buffers::Buffers, sample_rate::SampleRate};
 use bmidi::MidiMessage;
-use serde::{Deserialize, Serialize};
+
 use track::{Track, TrackProcessContext};
 use transport::Transport;
 
@@ -10,7 +10,7 @@ pub mod track;
 pub mod transport;
 
 /// Handles all processing.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Bats {
     /// The transport.
     pub transport: Transport,

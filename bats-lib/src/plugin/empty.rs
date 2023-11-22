@@ -1,9 +1,9 @@
 use bmidi::MidiMessage;
-use serde::{Deserialize, Serialize};
+
 
 use super::{metadata::Metadata, BatsInstrument};
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
 pub struct Empty;
 
 impl BatsInstrument for Empty {
