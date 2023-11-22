@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::plugin::{empty::Empty, toof::Toof, BatsInstrument};
 use crate::track::Track;
-use crate::Bats;
 use crate::transport::Transport;
+use crate::Bats;
 
 /// Creates a bats builder.
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -20,10 +20,12 @@ pub struct BatsBuilder {
 }
 
 /// Creates a track.
-#[derive(Copy, Clone, Default,Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct TrackBuilder {
     /// The plugin builder.
     pub plugin: PluginBuilder,
+    /// The volume for the track.
+    pub volume: f32,
 }
 
 /// An object that is used to build plugins.
@@ -60,26 +62,37 @@ impl BatsBuilder {
             }),
         }
     }
+
+    /// Create a builder from a bats object.
+    pub fn from_bats(b: &Bats) -> BatsBuilder {
+        BatsBuilder {
+            sample_rate: b.sample_rate,
+            buffer_size: b.buffer_size,
+            bpm: b.transport.bpm(),
+            tracks: core::array::from_fn(|idx| {
+                let track = &b.tracks[idx];
+                TrackBuilder::from_bats(track)
+            }),
+        }
+    }
 }
 
 impl TrackBuilder {
     /// Build the track.
     pub fn build(&self, sample_rate: SampleRate, buffer_size: usize) -> Track {
-        let mut t = Track::new(buffer_size);
-        t.plugin = self.plugin.build(sample_rate);
-        t
+        Track {
+            plugin: self.plugin.build(sample_rate),
+            volume: self.volume,
+            ..Track::new(buffer_size)
+        }
     }
-}
 
-impl From<Box<Toof>> for AnyPlugin {
-    fn from(v: Box<Toof>) -> AnyPlugin {
-        AnyPlugin::Toof(v)
-    }
-}
-
-impl Default for AnyPlugin {
-    fn default() -> AnyPlugin {
-        AnyPlugin::Empty(Empty)
+    /// Create a track builder from a track.
+    pub fn from_bats(t: &Track) -> TrackBuilder {
+        TrackBuilder {
+            plugin: PluginBuilder::from_bats(&t.plugin),
+            volume: t.volume,
+        }
     }
 }
 
@@ -119,5 +132,60 @@ impl PluginBuilder {
             PluginBuilder::Empty => AnyPlugin::Empty(Empty),
             PluginBuilder::Toof => AnyPlugin::Toof(Toof::new(sample_rate)),
         }
+    }
+
+    /// Create a plugin builder from an existing plugin.
+    pub fn from_bats(p: &AnyPlugin) -> PluginBuilder {
+        match p {
+            AnyPlugin::Empty(_) => PluginBuilder::Empty,
+            AnyPlugin::Toof(_) => PluginBuilder::Toof,
+        }
+    }
+}
+
+impl From<Box<Toof>> for AnyPlugin {
+    fn from(v: Box<Toof>) -> AnyPlugin {
+        AnyPlugin::Toof(v)
+    }
+}
+
+impl Default for AnyPlugin {
+    fn default() -> AnyPlugin {
+        AnyPlugin::Empty(Empty)
+    }
+}
+
+impl Default for TrackBuilder {
+    fn default() -> TrackBuilder {
+        TrackBuilder {
+            plugin: PluginBuilder::default(),
+            volume: 1.0,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build() {
+        let initial_bats = {
+            let mut b = BatsBuilder {
+                sample_rate: SampleRate::new(48000.0),
+                buffer_size: 256,
+                bpm: 175.2,
+                tracks: Default::default(),
+            }
+            .build();
+            b.tracks[1].volume = 0.65;
+            b.tracks[1].plugin = Toof::new(b.sample_rate).into();
+            b
+        };
+        let initial_builder = BatsBuilder::from_bats(&initial_bats);
+        let new_bats = initial_builder.build();
+        let new_builder = BatsBuilder::from_bats(&new_bats);
+        assert_eq!(initial_bats, new_bats);
+        assert_eq!(initial_builder, new_builder);
     }
 }
