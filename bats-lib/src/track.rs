@@ -2,7 +2,7 @@ use bats_dsp::{buffers::Buffers, position::Position};
 use bmidi::MidiMessage;
 use serde::{Deserialize, Serialize};
 
-use crate::{plugin::MidiEvent, plugin_factory::AnyPlugin, transport::Transport};
+use crate::{builder::AnyPlugin, plugin::MidiEvent, transport::Transport};
 
 /// An plugin with output buffers.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]

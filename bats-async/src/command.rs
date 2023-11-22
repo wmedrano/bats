@@ -1,4 +1,4 @@
-use bats_lib::{plugin::MidiEvent, plugin_factory::AnyPlugin, Bats};
+use bats_lib::{builder::AnyPlugin, plugin::MidiEvent, Bats};
 use log::error;
 
 /// Contains commands for bats.
@@ -121,7 +121,10 @@ impl Command {
 #[cfg(test)]
 mod tests {
     use bats_dsp::{position::Position, sample_rate::SampleRate};
-    use bats_lib::plugin::{empty::Empty, toof::Toof};
+    use bats_lib::{
+        builder::BatsBuilder,
+        plugin::{empty::Empty, toof::Toof},
+    };
     use bmidi::MidiMessage;
 
     use super::*;
@@ -142,14 +145,26 @@ mod tests {
 
     #[test]
     fn none_command_undo_is_none() {
-        let mut b = Bats::new(SampleRate::new(44100.0), 64);
+        let mut b = BatsBuilder {
+            sample_rate: SampleRate::new(44100.0),
+            buffer_size: 64,
+            bpm: 120.0,
+            tracks: Default::default(),
+        }
+        .build();
         let undo = Command::None.execute(&mut b);
         assert_eq!(undo, Command::None);
     }
 
     #[test]
     fn set_metronome_volume_sets_new_volume_and_returns_old_as_undo() {
-        let mut b = Bats::new(SampleRate::new(44100.0), 64);
+        let mut b = BatsBuilder {
+            sample_rate: SampleRate::new(44100.0),
+            buffer_size: 64,
+            bpm: 120.0,
+            tracks: Default::default(),
+        }
+        .build();
         b.transport.metronome_volume = 1.0;
 
         let undo = Command::SetMetronomeVolume(0.5).execute(&mut b);
@@ -159,7 +174,13 @@ mod tests {
 
     #[test]
     fn metrenome_set_bpm() {
-        let mut b = Bats::new(SampleRate::new(44100.0), 64);
+        let mut b = BatsBuilder {
+            sample_rate: SampleRate::new(44100.0),
+            buffer_size: 64,
+            bpm: 120.0,
+            tracks: Default::default(),
+        }
+        .build();
         b.transport.set_bpm(b.sample_rate, 100.0);
 
         let undo = Command::SetTransportBpm(90.0).execute(&mut b);
@@ -169,7 +190,13 @@ mod tests {
 
     #[test]
     fn set_plugin() {
-        let mut b = Bats::new(SampleRate::new(44100.0), 64);
+        let mut b = BatsBuilder {
+            sample_rate: SampleRate::new(44100.0),
+            buffer_size: 64,
+            bpm: 120.0,
+            tracks: Default::default(),
+        }
+        .build();
         let plugin = AnyPlugin::Toof(Toof::new(b.sample_rate));
         b.tracks[0].plugin = plugin.clone();
         assert_eq!(
@@ -214,7 +241,13 @@ mod tests {
 
     #[test]
     fn remove_plugin_that_does_not_exist_does_nothing() {
-        let mut b = Bats::new(SampleRate::new(44100.0), 64);
+        let mut b = BatsBuilder {
+            sample_rate: SampleRate::new(44100.0),
+            buffer_size: 64,
+            bpm: 120.0,
+            tracks: Default::default(),
+        }
+        .build();
         let plugin = AnyPlugin::Toof(Toof::new(b.sample_rate));
         b.tracks[0].plugin = plugin.clone();
         b.tracks[2].plugin = plugin.clone();
@@ -241,7 +274,13 @@ mod tests {
 
     #[test]
     fn set_armed_track() {
-        let mut b = Bats::new(SampleRate::new(44100.0), 64);
+        let mut b = BatsBuilder {
+            sample_rate: SampleRate::new(44100.0),
+            buffer_size: 64,
+            bpm: 120.0,
+            tracks: Default::default(),
+        }
+        .build();
         b.armed_track = 100;
 
         let undo = Command::SetArmedTrack(10).execute(&mut b);
@@ -259,7 +298,13 @@ mod tests {
 
     #[test]
     fn set_track_volume_sets_volume() {
-        let mut b = Bats::new(SampleRate::new(44100.0), 64);
+        let mut b = BatsBuilder {
+            sample_rate: SampleRate::new(44100.0),
+            buffer_size: 64,
+            bpm: 120.0,
+            tracks: Default::default(),
+        }
+        .build();
         b.tracks[0].volume = 0.1;
         b.tracks[1].volume = 0.2;
         let undo = Command::SetTrackVolume {
@@ -280,7 +325,13 @@ mod tests {
 
     #[test]
     fn set_track_volume_on_track_that_does_not_exist_does_nothing() {
-        let mut b = Bats::new(SampleRate::new(44100.0), 64);
+        let mut b = BatsBuilder {
+            sample_rate: SampleRate::new(44100.0),
+            buffer_size: 64,
+            bpm: 120.0,
+            tracks: Default::default(),
+        }
+        .build();
         let undo = Command::SetTrackVolume {
             track_id: 1000, // Out of range.
             volume: 0.3,
@@ -291,7 +342,13 @@ mod tests {
 
     #[test]
     fn set_sequence_sets_sequence_on_track() {
-        let mut b = Bats::new(SampleRate::new(44100.0), 64);
+        let mut b = BatsBuilder {
+            sample_rate: SampleRate::new(44100.0),
+            buffer_size: 64,
+            bpm: 120.0,
+            tracks: Default::default(),
+        }
+        .build();
         b.tracks[4].sequence = vec![MidiEvent {
             position: Position::new(0.0),
             midi: MidiMessage::TuneRequest,
@@ -325,7 +382,13 @@ mod tests {
 
     #[test]
     fn set_record() {
-        let mut b = Bats::new(SampleRate::new(44100.0), 64);
+        let mut b = BatsBuilder {
+            sample_rate: SampleRate::new(44100.0),
+            buffer_size: 64,
+            bpm: 120.0,
+            tracks: Default::default(),
+        }
+        .build();
         b.recording_enabled = true;
 
         // true -> true

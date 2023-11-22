@@ -3,8 +3,8 @@ use std::io::Stdout;
 use anyhow::Result;
 use bats_async::CommandSender;
 use bats_lib::{
+    builder::PluginBuilder,
     plugin::metadata::{Param, ParamType},
-    plugin_factory::PluginBuilder,
     Bats,
 };
 use bats_state::{BatsState, TrackDetails};

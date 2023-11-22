@@ -3,8 +3,8 @@ use std::{cell::RefCell, collections::HashMap};
 use bats_async::{command::Command, notification::Notification, CommandSender};
 use bats_dsp::sample_rate::SampleRate;
 use bats_lib::{
+    builder::AnyPlugin,
     plugin::{metadata::Metadata, MidiEvent},
-    plugin_factory::AnyPlugin,
     track::Track,
     Bats,
 };

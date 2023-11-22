@@ -70,15 +70,20 @@ mod tests {
     use super::*;
     use bats_dsp::sample_rate::SampleRate;
     use bats_lib::{
+        builder::{AnyPlugin, BatsBuilder},
         plugin::{empty::Empty, toof::Toof},
-        plugin_factory::AnyPlugin,
-        Bats,
     };
 
     #[test]
     fn send_commands_get_executed() {
         let (sender, receiver) = new_async_commander();
-        let mut bats = Bats::new(SampleRate::new(44100.0), 64);
+        let mut bats = BatsBuilder {
+            sample_rate: SampleRate::new(44100.0),
+            buffer_size: 64,
+            bpm: 120.0,
+            tracks: Default::default(),
+        }
+        .build();
         let plugin = AnyPlugin::Toof(Toof::new(bats.sample_rate));
         assert_eq!(bats.tracks[0].plugin, AnyPlugin::Empty(Empty));
         assert_eq!(sender.notifications(), vec![]);
